@@ -19,3 +19,5 @@ Input Sequence à Positional Encoding à Transformer Encoder à Feed Forward Net
 Unlike LSTM networks, Transformers use self-attention mechanisms that allow the model to consider all previous observations simultaneously when generating predictions. This may enable the model to capture long-range temporal dependencies more effectively. Also, this presents a comparative analysis over the duration of our project between the two models. 
 
 The proposed architectures represent the initial experimental design. During implementation, adjustments to the models and preprocessing pipeline may be introduced based on experimental results and computational considerations. Any such changes will be documented and justified in the final report. 
+
+To install, run this in your terminal: pip install -r requirements.txt
