@@ -58,136 +58,117 @@ pip install -r requirements.txt
 - Modular project architecture
 
 **Structure**
-root:.
-│   .env
-│   .gitignore
-│   README.md
-│   weather_main.py
-│   
-├───data
-│   ├───processed
-│   │       features.csv
-│   │       
-│   ├───raw
-│   │       atlanta_2024.csv
-│   │       austin.csv
-│   │       boston.csv
-│   │       dallas.csv
-│   │       los angeles.csv
-│   │       random.csv
-│   │       san antonio.csv
-│   │       seattle.csv
-│   │       seattle_2024.csv
-│   │       
-│   └───splits
-│           dev.csv
-│           test.csv
-│           train.csv
-│           
-├───models
-│   │   weather_lstm.keras
-│   │   
-│   ├───history
-│   │   │   metrics.json
-│   │   │   predictions.csv
-│   │   │   
-│   │   └───LSTM
-│   │           training_history.csv
-│   │           
-│   ├───LSTM
-│   │   ├───checkpoints
-│   │   │       best.keras
-│   │   │       
-│   │   └───experiments
-│   │       ├───2026-06-30_17-20-16
-│   │       │   │   model_summary.txt
-│   │       │   │   training_history.csv
-│   │       │   │   weather_transformer.keras
-│   │       │   │   
-│   │       │   └───figures
-│   │       │           loss_curve.png
-│   │       │           mae_curve.png
-│   │       │           prediction_curve.png
-│   │       │           
-│   │       ├───2026-06-30_18-37-23
-│   │       │   │   model_summary.txt
-│   │       │   │   training_history.csv
-│   │       │   │   weather_lstm.keras
-│   │       │   │   
-│   │       │   └───figures
-│   │       │           loss_curve.png
-│   │       │           mae_curve.png
-│   │       │           prediction_curve.png
-│   │       │           
-│   │       └───2026-07-01_17-14-36
-│   │           │   metrics.json
-│   │           │   model_summary.txt
-│   │           │   predictions.csv
-│   │           │   training_history.csv
-│   │           │   weather_lstm.keras
-│   │           │   
-│   │           └───figures
-│   │                   loss_curve.png
-│   │                   mae_curve.png
-│   │                   prediction_curve.png
-│   │                   
-│   └───predictions
-│           predictions.csv
-│           
-├───src
-│   ├───api
-│   │   │   openmeteo_client.py
-│   │   │   
-│   │   └───__pycache__
-│   │           openmeteo_client.cpython-311.pyc
-│   │           weatherapi_client.cpython-311.pyc
-│   │           
-│   ├───data
-│   │   │   collect_historical.py
-│   │   │   preprocess.py
-│   │   │   split_dataset.py
-│   │   │   
-│   │   └───__pycache__
-│   │           collect_data.cpython-311.pyc
-│   │           collect_historical.cpython-311.pyc
-│   │           preprocess.cpython-311.pyc
-│   │           split_dataset.cpython-311.pyc
-│   │           
-│   ├───models
-│   │   ├───checkpoints
-│   │   │   └───Transformer
-│   │   ├───common
-│   │   │       callbacks.py
-│   │   │       evaluation.py
-│   │   │       plotting.py
-│   │   │       
-│   │   ├───lstm
-│   │   │   │   model.py
-│   │   │   │   predict.py
-│   │   │   │   train.py
-│   │   │   │   
-│   │   │   └───__pycache__
-│   │   │           model.cpython-311.pyc
-│   │   │           
-│   │   ├───transformer
-│   │   │       model.py
-│   │   │       predict.py
-│   │   │       train.py
-│   │   │       
-│   │   └───__pycache__
-│   │           LSTM.cpython-311.pyc
-│   │           predict.cpython-311.pyc
-│   │           
-│   └───utils
-│       │   city_coordinates.py
-│       │   config.py
-│       │   
-│       └───__pycache__
-│               city_coordinates.cpython-311.pyc
-│               config.cpython-311.pyc
-│               json_explorer.cpython-311.pyc
-│               
-└───tests
+'''
+```text
+WeatherAI/
+│
+├── .env
+├── .gitignore
+├── README.md
+├── weather_main.py
+│
+├── data/
+│   ├── processed/
+│   │   └── features.csv
+│   │
+│   ├── raw/
+│   │   ├── atlanta_2024.csv
+│   │   ├── austin.csv
+│   │   ├── boston.csv
+│   │   ├── dallas.csv
+│   │   ├── los_angeles.csv
+│   │   ├── random.csv
+│   │   ├── san_antonio.csv
+│   │   ├── seattle.csv
+│   │   └── seattle_2024.csv
+│   │
+│   └── splits/
+│       ├── train.csv
+│       ├── dev.csv
+│       └── test.csv
+│
+├── models/
+│   ├── weather_lstm.keras
+│   │
+│   ├── history/
+│   │   ├── metrics.json
+│   │   ├── predictions.csv
+│   │   └── LSTM/
+│   │       └── training_history.csv
+│   │
+│   ├── LSTM/
+│   │   ├── checkpoints/
+│   │   │   └── best.keras
+│   │   │
+│   │   └── experiments/
+│   │       ├── 2026-06-30_17-20-16/
+│   │       │   ├── model_summary.txt
+│   │       │   ├── training_history.csv
+│   │       │   ├── weather_transformer.keras
+│   │       │   └── figures/
+│   │       │       ├── loss_curve.png
+│   │       │       ├── mae_curve.png
+│   │       │       └── prediction_curve.png
+│   │       │
+│   │       ├── 2026-06-30_18-37-23/
+│   │       │   ├── model_summary.txt
+│   │       │   ├── training_history.csv
+│   │       │   ├── weather_lstm.keras
+│   │       │   └── figures/
+│   │       │       ├── loss_curve.png
+│   │       │       ├── mae_curve.png
+│   │       │       └── prediction_curve.png
+│   │       │
+│   │       └── 2026-07-01_17-14-36/
+│   │           ├── metrics.json
+│   │           ├── model_summary.txt
+│   │           ├── predictions.csv
+│   │           ├── training_history.csv
+│   │           ├── weather_lstm.keras
+│   │           └── figures/
+│   │               ├── loss_curve.png
+│   │               ├── mae_curve.png
+│   │               └── prediction_curve.png
+│   │
+│   └── predictions/
+│       └── predictions.csv
+│
+├── src/
+│   ├── api/
+│   │   └── openmeteo_client.py
+│   │
+│   ├── data/
+│   │   ├── collect_historical.py
+│   │   ├── preprocess.py
+│   │   └── split_dataset.py
+│   │
+│   ├── models/
+│   │   ├── checkpoints/
+│   │   │   └── Transformer/
+│   │   │
+│   │   ├── common/
+│   │   │   ├── callbacks.py
+│   │   │   ├── evaluation.py
+│   │   │   └── plotting.py
+│   │   │
+│   │   ├── lstm/
+│   │   │   ├── model.py
+│   │   │   ├── train.py
+│   │   │   └── predict.py
+│   │   │
+│   │   └── transformer/
+│   │       ├── model.py
+│   │       ├── train.py
+│   │       └── predict.py
+│   │
+│   └── utils/
+│       ├── city_coordinates.py
+│       └── config.py
+│
+└── tests/
+```
+
+'''
 
 **Machine Learning Pipeline**
 Historical Weather Data
