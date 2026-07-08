@@ -1,0 +1,5 @@
+In this folder, I (Larry) have created and stored all relevant neural network processing for the LSTM architecutral model.
+I have made a record-keeping folder called checkpoints and experiments. Both store the numerical data and images of the training and 
+test results from the model supervised learning.
+
+The latest folder refers to the most recent model processed with the input parameter data.

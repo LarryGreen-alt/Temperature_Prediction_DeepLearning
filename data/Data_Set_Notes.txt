@@ -1,0 +1,3 @@
+Here, we store our collected historical weather data. This is processed from the API, delivered as 'raw' files. 
+Then, the raw data is filtered and split into portions of the collective data from each location (Coordinate) 
+that we have provided.
