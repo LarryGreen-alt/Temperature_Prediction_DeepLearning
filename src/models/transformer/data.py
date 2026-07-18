@@ -3,7 +3,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from src.data.preprocess import preprocess
+from src.data.split_dataset import split_dataset
+
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
+RAW_DIR = PROJECT_ROOT / "data" / "raw"
 
 DATA_DIR = PROJECT_ROOT / "data" / "splits"
 TRAIN_FILE = DATA_DIR / "train.csv"
@@ -29,7 +34,27 @@ FEATURE_COLUMNS = [
 TARGET_COLUMN = "temperature_2m"
 
 
+def _ensure_splits_exist(train_file, dev_file, test_file):
+    if train_file.exists() and dev_file.exists() and test_file.exists():
+        return
+
+    if not RAW_DIR.exists() or not any(RAW_DIR.glob("*.csv")):
+        raise FileNotFoundError(
+            f"No split files under {DATA_DIR} and no raw CSVs under {RAW_DIR}. "
+            "If this repo tracks data/raw/ via Git LFS, run `git lfs pull` first. "
+            "Otherwise, fetch each city's raw weather history (see "
+            "src/data/collect_historical.py and src/utils/city_coordinates.py), "
+            "then this function can regenerate the splits automatically."
+        )
+
+    print(f"{DATA_DIR} not found -- regenerating from {RAW_DIR} (preprocess + split, ~20s)...")
+    preprocess()
+    split_dataset()
+
+
 def load_splits(train_file=TRAIN_FILE, dev_file=DEV_FILE, test_file=TEST_FILE):
+    _ensure_splits_exist(train_file, dev_file, test_file)
+
     train_df = pd.read_csv(train_file)
     dev_df = pd.read_csv(dev_file)
     test_df = pd.read_csv(test_file)
