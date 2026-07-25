@@ -4,7 +4,7 @@ import tensorflow as tf
 
 from pathlib import Path
 
-from src.models.transformer.data import FEATURE_COLUMNS
+from src.models.common.data import FEATURE_COLUMNS
 
 WINDOW_SIZE = 24
 

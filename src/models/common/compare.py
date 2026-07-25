@@ -92,10 +92,10 @@ def load_row(model_name):
     }
 
 
-def compare():
+def compare(model_names=MODEL_NAMES):
     rows = [
         row
-        for row in (load_row(model_name) for model_name in MODEL_NAMES)
+        for row in (load_row(model_name) for model_name in model_names)
         if row is not None
     ]
 

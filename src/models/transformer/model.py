@@ -1,4 +1,4 @@
-from src.models.transformer.data import PROJECT_ROOT
+from src.models.common.data import PROJECT_ROOT
 from src.models.transformer.training import TransformerConfig, run_training, timestamp_now
 
 MODEL_NAME = "Transformer"
