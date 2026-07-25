@@ -1,8 +1,8 @@
 """Builds a side-by-side LSTM vs Transformer metrics comparison for the report.
 
 Loads each model's most recent experiment (the one with the highest timestamp
-that contains a metrics.json), writes a comparison table + bar chart to
-models/comparison/.
+that contains a metrics.json), writes a comparison table + bar chart to its
+own subfolder under models/comparison/, named after the models compared.
 """
 
 import json
@@ -21,6 +21,30 @@ MODEL_NAMES = ["LSTM", "Transformer/baseline"]
 OUTPUT_DIR = MODEL_DIR / "comparison"
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _slugify(model_name):
+    return model_name.replace("/", "-")
+
+
+def discover_model_names():
+    """Finds every model with at least one experiment that has a
+    metrics.json, by looking for models/<model_name>/experiments/ dirs
+    anywhere under models/ (model_name may be a single path segment, e.g.
+    "LSTM", or nested, e.g. "Transformer/baseline")."""
+
+    names = []
+
+    for experiments_dir in MODEL_DIR.rglob("experiments"):
+        if not experiments_dir.is_dir():
+            continue
+
+        model_name = experiments_dir.parent.relative_to(MODEL_DIR).as_posix()
+
+        if latest_experiment_with_metrics(model_name) is not None:
+            names.append(model_name)
+
+    return sorted(names)
 
 
 def latest_experiment_with_metrics(model_name):
@@ -92,7 +116,7 @@ def load_row(model_name):
     }
 
 
-def compare(model_names=MODEL_NAMES):
+def compare(model_names=MODEL_NAMES, name=None):
     rows = [
         row
         for row in (load_row(model_name) for model_name in model_names)
@@ -107,7 +131,11 @@ def compare(model_names=MODEL_NAMES):
 
     comparison_df = pd.DataFrame(rows)
 
-    comparison_file = OUTPUT_DIR / "comparison.csv"
+    comparison_name = name or "_vs_".join(_slugify(m) for m in model_names)
+    comparison_dir = OUTPUT_DIR / comparison_name
+    comparison_dir.mkdir(parents=True, exist_ok=True)
+
+    comparison_file = comparison_dir / "comparison.csv"
 
     comparison_df.to_csv(comparison_file, index=False)
 
@@ -132,15 +160,27 @@ def compare(model_names=MODEL_NAMES):
         axes[1].set_ylabel("RMSE (°C)")
         axes[1].grid(True, axis="y")
 
+        for ax in axes:
+            plt.setp(ax.get_xticklabels(), rotation=20, ha="right")
+
         fig.tight_layout()
 
-        chart_file = OUTPUT_DIR / "comparison_chart.png"
+        chart_file = comparison_dir / "comparison_chart.png"
 
         fig.savefig(chart_file, dpi=300, bbox_inches="tight")
 
         plt.close(fig)
 
         print(f"Saved chart to: {chart_file}")
+
+    return comparison_df
+
+
+def compare_all():
+    """Compares every model that has at least one experiment with a
+    metrics.json, in one combined table + chart under models/comparison/all/."""
+
+    return compare(discover_model_names(), name="all")
 
 
 if __name__ == "__main__":
