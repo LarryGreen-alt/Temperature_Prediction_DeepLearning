@@ -16,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 MODEL_DIR = PROJECT_ROOT / "models"
 
-MODEL_NAMES = ["LSTM", "Transformer"]
+MODEL_NAMES = ["LSTM", "Transformer/baseline"]
 
 OUTPUT_DIR = MODEL_DIR / "comparison"
 

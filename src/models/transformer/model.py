@@ -2,7 +2,7 @@ from src.models.common.data import PROJECT_ROOT
 from src.models.transformer.training import TransformerConfig, run_training, timestamp_now
 
 MODEL_NAME = "Transformer"
-MODEL_ROOT = PROJECT_ROOT / "models" / MODEL_NAME
+MODEL_ROOT = PROJECT_ROOT / "models" / MODEL_NAME / "baseline"
 
 config = TransformerConfig()
 experiment_dir = MODEL_ROOT / "experiments" / timestamp_now()
