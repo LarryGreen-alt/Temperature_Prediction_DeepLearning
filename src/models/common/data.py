@@ -5,6 +5,7 @@ import pandas as pd
 
 from src.data.preprocess import preprocess
 from src.data.split_dataset import split_dataset
+from src.utils.city_coordinates import CITY_COORDINATES
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -32,6 +33,10 @@ FEATURE_COLUMNS = [
 ]
 
 TARGET_COLUMN = "temperature_2m"
+
+CITY_COLUMN = "city"
+CITY_VOCAB = {city: idx for idx, city in enumerate(sorted(CITY_COORDINATES))}
+NUM_CITIES = len(CITY_VOCAB)
 
 
 def _ensure_splits_exist(train_file, dev_file, test_file):
@@ -84,3 +89,36 @@ def create_sequences(
         y.append(target[i + window_size + forecast_horizon - 1])
 
     return np.array(X), np.array(y)
+
+
+def create_city_aware_sequences(
+    dataframe,
+    window_size=WINDOW_SIZE,
+    forecast_horizon=FORECAST_HORIZON,
+    feature_columns=FEATURE_COLUMNS,
+    target_column=TARGET_COLUMN,
+    city_column=CITY_COLUMN,
+    city_vocab=CITY_VOCAB
+):
+    """Like create_sequences(), but builds each city's windows independently
+    so a window never spans two cities, and returns a parallel array of
+    integer city ids (one per window) alongside X/y. Reuses create_sequences()
+    per city group, so the weather/target windows themselves are identical to
+    what create_sequences() would produce for that city's rows alone.
+
+    Lives here (not in a model-specific module) so any architecture's
+    experiments can build identical city ids and windows for a fair
+    comparison."""
+    X_parts, y_parts, city_id_parts = [], [], []
+
+    for city, group in dataframe.groupby(city_column, sort=True):
+        X_city, y_city = create_sequences(
+            group, window_size, forecast_horizon, feature_columns, target_column
+        )
+        if len(X_city) == 0:
+            continue
+        X_parts.append(X_city)
+        y_parts.append(y_city)
+        city_id_parts.append(np.full(len(X_city), city_vocab[city], dtype=np.int32))
+
+    return np.concatenate(X_parts), np.concatenate(y_parts), np.concatenate(city_id_parts)

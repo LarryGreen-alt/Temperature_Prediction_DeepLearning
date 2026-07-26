@@ -37,7 +37,9 @@ def timestamp_now():
 
 def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots=False,
                   feature_columns=data.FEATURE_COLUMNS, target_column=data.TARGET_COLUMN,
-                  load_splits_fn=data.load_splits):
+                  load_splits_fn=data.load_splits,
+                  city_aware=False, city_column=data.CITY_COLUMN, city_vocab=data.CITY_VOCAB,
+                  city_embed_dim=8):
     """Loads data, builds (or reuses a supplied) model, trains it with early
     stopping, evaluates on the test set, and saves every experiment artifact.
     Returns a results dict shaped the same as load_cached_results(), so
@@ -45,7 +47,13 @@ def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots
 
     `feature_columns`/`target_column`/`load_splits_fn` let experiments swap
     in different inputs (e.g. extra features, a city-filtered dataset)
-    without duplicating this whole training/eval/save loop."""
+    without duplicating this whole training/eval/save loop.
+
+    `city_aware`, when True, builds windows with data.create_city_aware_sequences()
+    instead of data.create_sequences() (so a window never spans two cities),
+    builds a two-input model (weather sequence + city id), and fits/evaluates
+    on [X, city_ids] instead of a bare array. Left at its default of False,
+    this function's behavior is unchanged."""
 
     figure_dir = experiment_dir / "figures"
     experiment_dir.mkdir(parents=True, exist_ok=True)
@@ -54,15 +62,29 @@ def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots
 
     train_df, dev_df, test_df = load_splits_fn()
 
-    X_train, y_train = data.create_sequences(
-        train_df, config.window_size, config.forecast_horizon, feature_columns, target_column
-    )
-    X_dev, y_dev = data.create_sequences(
-        dev_df, config.window_size, config.forecast_horizon, feature_columns, target_column
-    )
-    X_test, y_test = data.create_sequences(
-        test_df, config.window_size, config.forecast_horizon, feature_columns, target_column
-    )
+    if city_aware:
+        X_train, y_train, city_train = data.create_city_aware_sequences(
+            train_df, config.window_size, config.forecast_horizon, feature_columns, target_column,
+            city_column, city_vocab
+        )
+        X_dev, y_dev, city_dev = data.create_city_aware_sequences(
+            dev_df, config.window_size, config.forecast_horizon, feature_columns, target_column,
+            city_column, city_vocab
+        )
+        X_test, y_test, city_test = data.create_city_aware_sequences(
+            test_df, config.window_size, config.forecast_horizon, feature_columns, target_column,
+            city_column, city_vocab
+        )
+    else:
+        X_train, y_train = data.create_sequences(
+            train_df, config.window_size, config.forecast_horizon, feature_columns, target_column
+        )
+        X_dev, y_dev = data.create_sequences(
+            dev_df, config.window_size, config.forecast_horizon, feature_columns, target_column
+        )
+        X_test, y_test = data.create_sequences(
+            test_df, config.window_size, config.forecast_horizon, feature_columns, target_column
+        )
 
     if model is None:
         normalizer = layers.Normalization()
@@ -76,7 +98,9 @@ def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots
             num_encoder_layers=config.num_encoder_layers,
             ff_dim=config.ff_dim,
             dropout_rate=config.dropout_rate,
-            normalizer=normalizer
+            normalizer=normalizer,
+            num_cities=len(city_vocab) if city_aware else None,
+            city_embed_dim=city_embed_dim
         )
 
     model.summary()
@@ -101,10 +125,14 @@ def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots
         verbose=1
     )
 
+    fit_X_train = [X_train, city_train] if city_aware else X_train
+    fit_X_dev = [X_dev, city_dev] if city_aware else X_dev
+    fit_X_test = [X_test, city_test] if city_aware else X_test
+
     history = model.fit(
-        X_train,
+        fit_X_train,
         y_train,
-        validation_data=(X_dev, y_dev),
+        validation_data=(fit_X_dev, y_dev),
         epochs=config.epochs,
         batch_size=config.batch_size,
         callbacks=[early_stopping, checkpoint],
@@ -115,7 +143,7 @@ def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots
     history_df.to_csv(experiment_dir / "training_history.csv", index=False)
 
     loss, mae, rmse, predictions = evaluate_and_save(
-        model, X_test, y_test,
+        model, fit_X_test, y_test,
         experiment_dir / "metrics.json",
         experiment_dir / "predictions.csv"
     )
