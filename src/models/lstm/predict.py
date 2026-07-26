@@ -27,7 +27,6 @@ FEATURE_COLUMNS = [
     "day_cos"
 ]
 
-
 MODEL_PATH = "models/weather_lstm.keras"
 
 TEST_DATA = "data/splits/test.csv"

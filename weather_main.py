@@ -65,7 +65,7 @@ save_historical_weather(
 
     start_date="2015-01-01",
 
-    end_date="2024-12-31",
+    end_date="2026-07-01",
 
     output_file=f"data/raw/{city_name}.csv"
 
