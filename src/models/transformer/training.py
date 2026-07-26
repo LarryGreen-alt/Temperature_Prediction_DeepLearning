@@ -9,9 +9,10 @@ import tensorflow as tf
 from tensorflow.keras import layers
 from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
+from src.models.common import data
 from src.models.common.evaluation import evaluate_and_save
 from src.models.common.plotting import plot_loss_curve, plot_mae_curve, plot_prediction_curve
-from src.models.transformer import architecture, data
+from src.models.transformer import architecture
 
 
 @dataclass
@@ -34,24 +35,34 @@ def timestamp_now():
     return datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
 
-def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots=False):
+def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots=False,
+                  feature_columns=data.FEATURE_COLUMNS, target_column=data.TARGET_COLUMN,
+                  load_splits_fn=data.load_splits):
     """Loads data, builds (or reuses a supplied) model, trains it with early
     stopping, evaluates on the test set, and saves every experiment artifact.
     Returns a results dict shaped the same as load_cached_results(), so
-    callers don't need to branch on whether training actually happened."""
+    callers don't need to branch on whether training actually happened.
+
+    `feature_columns`/`target_column`/`load_splits_fn` let experiments swap
+    in different inputs (e.g. extra features, a city-filtered dataset)
+    without duplicating this whole training/eval/save loop."""
 
     figure_dir = experiment_dir / "figures"
     experiment_dir.mkdir(parents=True, exist_ok=True)
     figure_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
 
-    train_df, dev_df, test_df = data.load_splits()
+    train_df, dev_df, test_df = load_splits_fn()
 
     X_train, y_train = data.create_sequences(
-        train_df, config.window_size, config.forecast_horizon
+        train_df, config.window_size, config.forecast_horizon, feature_columns, target_column
     )
-    X_dev, y_dev = data.create_sequences(dev_df, config.window_size, config.forecast_horizon)
-    X_test, y_test = data.create_sequences(test_df, config.window_size, config.forecast_horizon)
+    X_dev, y_dev = data.create_sequences(
+        dev_df, config.window_size, config.forecast_horizon, feature_columns, target_column
+    )
+    X_test, y_test = data.create_sequences(
+        test_df, config.window_size, config.forecast_horizon, feature_columns, target_column
+    )
 
     if model is None:
         normalizer = layers.Normalization()

@@ -14,12 +14,18 @@ from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
 
 import matplotlib.pyplot as plt
 
+from src.models.common.data import (
+    PROJECT_ROOT,
+    TRAIN_FILE,
+    WINDOW_SIZE,
+    FORECAST_HORIZON,
+    load_splits,
+    create_sequences
+)
+
 # ------------------------------------
 # Configuration
 # ------------------------------------
-
-WINDOW_SIZE = 24          # Previous 24 hours
-FORECAST_HORIZON = 3      # Predict 3 hours ahead
 
 BATCH_SIZE = 32
 EPOCHS = 25
@@ -28,14 +34,8 @@ EPOCHS = 25
 # Project Paths
 # ------------------------------------
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-
 DATA_DIR = PROJECT_ROOT / "data"
 MODEL_DIR = PROJECT_ROOT / "models"
-
-TRAIN_FILE = DATA_DIR / "splits" / "train.csv"
-DEV_FILE = DATA_DIR / "splits" / "dev.csv"
-TEST_FILE = DATA_DIR / "splits" / "test.csv"
 
 # ------------------------------------
 # Output Directories
@@ -138,81 +138,7 @@ print("PROJECT_ROOT:", PROJECT_ROOT)
 print("TRAIN_FILE:", TRAIN_FILE)
 print("Exists:", TRAIN_FILE.exists())
 
-train_df = pd.read_csv(TRAIN_FILE)
-dev_df = pd.read_csv(DEV_FILE)
-test_df = pd.read_csv(TEST_FILE)
-
-# ------------------------------------
-# Feature Columns
-# ------------------------------------
-
-FEATURE_COLUMNS = [
-
-    "relative_humidity_2m",
-    "surface_pressure",
-    "wind_speed_10m",
-    "cloud_cover",
-    "precipitation",
-    "is_day",
-
-    "hour_sin",
-    "hour_cos",
-
-    "day_sin",
-    "day_cos"
-
-]
-
-TARGET_COLUMN = "temperature_2m"
-
-# ------------------------------------
-# Convert to float
-# ------------------------------------
-
-for df in [train_df, dev_df, test_df]:
-
-    df[FEATURE_COLUMNS] = df[FEATURE_COLUMNS].astype(np.float32)
-    df[TARGET_COLUMN] = df[TARGET_COLUMN].astype(np.float32)
-
-# ------------------------------------
-# Sequence Generator
-# ------------------------------------
-
-def create_sequences(dataframe):
-
-    X = []
-    y = []
-
-    features = dataframe[FEATURE_COLUMNS].values
-    target = dataframe[TARGET_COLUMN].values
-
-    for i in range(
-
-        len(dataframe)
-        - WINDOW_SIZE
-        - FORECAST_HORIZON
-        + 1
-
-    ):
-
-        X.append(
-
-            features[
-                i : i + WINDOW_SIZE
-            ]
-
-        )
-
-        y.append(
-
-            target[
-                i + WINDOW_SIZE + FORECAST_HORIZON - 1
-            ]
-
-        )
-
-    return np.array(X), np.array(y)
-
+train_df, dev_df, test_df = load_splits()
 
 # ------------------------------------
 # Create Sequences
