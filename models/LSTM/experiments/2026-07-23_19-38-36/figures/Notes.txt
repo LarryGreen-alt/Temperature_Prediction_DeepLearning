@@ -1,0 +1,128 @@
+What the current results show
+
+Your current script is already a meaningful improvement over a basic one-step LSTM. It uses the previous 72 hours to predict the next 24 hours, and it predicts a correction to the same hours from the previous day rather than reconstructing the entire temperature curve from nothing.
+
+1. Training behavior
+
+From the loss and MAE curves:
+
+Training Huber loss falls from approximately 2.29 to 1.82.
+Validation Huber loss falls from approximately 1.85 to 1.61.
+Training MAE falls from approximately 2.13°C to 1.78°C.
+Validation MAE falls from approximately 1.81°C to 1.64°C.
+Most learning occurs during the first 10–15 epochs.
+Improvements after approximately epoch 18 are relatively small.
+
+There is no obvious classic overfitting because validation loss does not begin increasing while training loss continues decreasing.
+
+Validation being consistently better than training is not necessarily an error. Your current model uses dropout and L2 regularization during training, which intentionally makes training batches harder.
+
+However, it is worth verifying that the validation data is not simply easier than the training data.
+
+2. Forecast quality
+
+The example forecast captures the overall pattern well:
+
+The overnight temperature decline occurs at approximately the correct time.
+The daily minimum occurs in roughly the correct region.
+The afternoon warming starts at the correct time.
+The predicted daily maximum also occurs near the correct hour.
+
+The biggest weakness is amplitude compression:
+
+Around hours 8–10, the model predicts temperatures that are too warm.
+Around hours 18–23, it predicts temperatures that are too cool.
+The predicted curve is smoother than the actual curve.
+The daytime peak is underestimated by roughly 1.5–2.1°C.
+
+This is a common regression-to-the-mean effect. The model has learned the daily shape but is hesitant to predict strong peaks and troughs.
+
+3. Forecast error by horizon
+
+The horizon graph shows approximately:
+
+Hour 1 MAE: 0.84°C
+Hour 6 MAE: 1.44°C
+Hour 12 MAE: 1.87°C
+Hour 18 MAE: 2.14°C
+Hour 24 MAE: 2.39°C
+
+The approximate average across the graph is 1.79°C, compared with the plotted previous-day baseline of approximately 2.69°C. That represents roughly a 33% average improvement over the baseline.
+
+The model beats the baseline at every forecast hour, but its advantage decreases with forecast distance:
+
+Near-term improvement: approximately 69% at hour 1.
+Long-term improvement: approximately 11% at hour 24.
+
+That is expected because uncertainty accumulates farther into the future.
+
+One item deserves verification: the previous-day baseline line is perfectly flat at approximately 2.69°C. A real per-horizon previous-day baseline usually varies somewhat. Confirm that the graph uses:
+
+previous_day_metrics["mae_by_hour"]
+
+rather than repeating previous_day_metrics["overall_mae"] 24 times. Your uploaded script appears to use the correct per-hour value, so the flat result may have come from an earlier plotting version.
+
+Improvements:
+What your current model already improved
+
+Your existing architecture has several sound decisions:
+
+Directly predicts all 24 forecast hours instead of recursively predicting one hour at a time.
+Uses the previous day as a residual baseline.
+Normalizes using training data.
+Uses Huber loss, which is more resistant to extreme errors than MSE.
+Uses gradient clipping.
+Uses early stopping, learning-rate reduction, and best-model checkpoints.
+
+The current architecture is relatively small, though: two LSTMs with 48 and 24 units followed by one small dense representation. This likely contributes to the overly smooth forecasts.
+
+What can still be improved
+
+The highest-priority improvements are:
+
+Better peak and trough representation
+
+The current model compresses the daily temperature range. A larger encoder, max pooling, and a horizon-specific decoder can help retain extreme values.
+
+Better long-range context
+
+A final LSTM state has to summarize all 72 hours. Self-attention allows the model to directly compare the latest conditions with corresponding periods one or two days earlier.
+
+Different behavior for different forecast horizons
+
+Hour 1 and hour 24 should not use exactly the same decoding behavior. Learned horizon embeddings allow each hour to develop its own correction pattern.
+
+Location information
+
+Your sequences are separated by city, but city identity is not included in the feature list. If one global model is trained on multiple cities, consider adding latitude, longitude, elevation, climate region, or a city embedding.
+
+Data-split verification
+
+Make sure the raw data is split chronologically before windows are generated. Randomly splitting overlapping windows can make validation results unrealistically good.
+
+Additional evaluation
+
+Record MAE, RMSE, and bias by:
+
+City
+Month or season
+Day versus night
+Clear versus cloudy periods
+Normal days versus rapid temperature changes
+Improved model supplied
+
+The updated model keeps your successful previous-day residual approach but adds:
+
+Causal Conv1D feature extraction
+A 96-unit LSTM encoder
+Multi-head self-attention
+Residual attention blocks
+Average, maximum, and latest-state pooling
+A learned embedding for each forecast horizon
+A separate correction decoder for every forecast hour
+Best-checkpoint evaluation
+Persistence and previous-day baseline comparisons
+Timestamped experiments and a stable latest model directory
+An interactive and command-line prediction script
+
+The architecture is specifically designed to address the smooth peaks and increasing long-horizon error visible in your graphs. Better results are not guaranteed until it is trained and evaluated on the same untouched test set.
