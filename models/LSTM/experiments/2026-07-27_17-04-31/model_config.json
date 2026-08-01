@@ -1,5 +1,5 @@
 {
-    "model_name": "weather_lstm_multibaseline_24h",
+    "model_name": "weather_lstm_attention_24h",
     "input_hours": 72,
     "output_hours": 24,
     "feature_columns": [
@@ -17,9 +17,19 @@
     ],
     "target_column": "temperature_2m",
     "temperature_feature_index": 0,
-    "created_at": "2026-07-27_18-19-33",
-    "best_epoch": 36,
-    "training_stride": 3,
+    "uses_previous_day_baseline": true,
+    "time_column_candidates": [
+        "time",
+        "datetime",
+        "timestamp",
+        "date"
+    ],
+    "group_column_candidates": [
+        "city",
+        "location",
+        "location_name"
+    ],
+    "created_at": "2026-07-27_17-04-31",
     "training_files": {
         "train": "C:\\Users\\lj200\\weatherAI\\Temperature_Prediction_DeepLearning\\data\\splits\\train.csv",
         "dev": "C:\\Users\\lj200\\weatherAI\\Temperature_Prediction_DeepLearning\\data\\splits\\dev.csv",

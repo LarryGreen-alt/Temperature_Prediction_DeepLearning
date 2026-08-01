@@ -1,0 +1,67 @@
+The model is reasonably strong, but the forecase plot reveals on clear weakness: 
+it follows the first 16–17 hours well, then predicts an early peak and cool-down 
+while the actual temperature continues rising and remains near 25°C (77 °F).
+
+By hours 23–24, it is underpredicting by roughly 3.5–4°C. This is characteristic 
+of an overly smooth forecast that handles normal daily cycles better than sustained
+warming or a weather-regime transition.
+
+he loss chart does not show classic overfitting. Both curves continue improving. 
+Training loss is higher partly because your event weights of 1.0–1.5 are applied 
+only to training, while validation is unweighted. Keras sample weights scale each 
+sample’s training loss, and dropout is inactive during validation, so these two loss 
+curves are not directly comparable.
+
+Data set needs 1. Audit the 2015–2026 split before changing the network before any model improvements
+
+Use a strict chronological division such as:
+
+Training: 2015–2023
+Development: 2024
+Final test: 2025–2026
+
+2. Tell the model which city it is forecasting for a multi-city model
+
+Your sequence generator groups rows by city to prevent sequences from crossing between locations,
+ but the city itself is never included in X. The model currently sees only temperature, humidity, 
+ pressure, wind speed, clouds, precipitation, daylight, and cyclical time features
+
+ 3. Add weather-transition features
+
+The current input is missing several variables that
+ help distinguish an ordinary day/night cycle from warm fronts and cold fronts:
+
+wind_direction_sin
+wind_direction_cos
+dew_point_2m
+temperature_change_1h
+temperature_change_3h
+temperature_change_6h
+pressure_change_3h
+pressure_change_6h
+humidity_change_3h
+cloud_cover_change_3h
+
+4. Penalize incorrect temperature movement
+
+our current loss is ordinary Huber loss over absolute temperature levels. That can favor smooth, average forecasts even when the direction and amplitude are wrong.
+
+The revised model uses a composite loss:
+
+L=L
+temperature level
+	​
+
+\+0.25L
+hourly change
+	​
+
+. Preserve the full 72-hour history for each forecast hour
+
+The existing model contains Conv1D, two LSTMs, self-attention, pooled context, and a decoder. It then repeats a compressed global context for all 24 forecast hours and combines it with three conservative baselines.
+
+My revision adds cross-attention:
+
+Forecast hour 1 can inspect all 72 historical hours.
+Forecast hour 12 can focus on a different part of the history.
+Forecast hour 24 can directly examine previous-day and multi-day patterns.
