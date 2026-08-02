@@ -26,6 +26,11 @@ class TransformerConfig:
     dropout_rate: float = 0.20
     batch_size: int = 32
     epochs: int = 25
+    # Rate for the single Dropout in the dense head, separate from the four
+    # inside the encoder blocks. None means "same as dropout_rate". It lives
+    # on the config (rather than being a run_training() argument) so that it
+    # is recorded in the experiment's config.json.
+    head_dropout_rate: float | None = None
 
     def to_dict(self):
         return asdict(self)
@@ -100,7 +105,8 @@ def run_training(config, experiment_dir, checkpoint_path, model=None, show_plots
             dropout_rate=config.dropout_rate,
             normalizer=normalizer,
             num_cities=len(city_vocab) if city_aware else None,
-            city_embed_dim=city_embed_dim
+            city_embed_dim=city_embed_dim,
+            head_dropout_rate=config.head_dropout_rate
         )
 
     model.summary()

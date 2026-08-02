@@ -50,7 +50,8 @@ def build_model(
     dropout_rate,
     normalizer,
     num_cities=None,
-    city_embed_dim=8
+    city_embed_dim=8,
+    head_dropout_rate=None
 ):
     """Assembles the Transformer architecture. `normalizer` must already be
     constructed (and adapted, if the caller wants normalization to be
@@ -62,7 +63,15 @@ def build_model(
     projection (the same way positional encoding is added), before entering
     the encoder blocks. The city id bypasses `normalizer` entirely — it's
     categorical, not a continuous quantity to be z-scored. Left at its
-    default of None, the graph is identical to the single-input version."""
+    default of None, the graph is identical to the single-input version.
+
+    `head_dropout_rate` sets the rate of the single `Dropout` in the dense
+    head independently of the four inside the encoder blocks, which always
+    use `dropout_rate`. Left at its default of None it falls back to
+    `dropout_rate`, so the graph is identical to the version before this
+    parameter existed."""
+
+    head_dropout = dropout_rate if head_dropout_rate is None else head_dropout_rate
 
     inputs = tf.keras.Input(shape=(window_size, num_features), name="weather_sequence")
 
@@ -83,7 +92,7 @@ def build_model(
 
     x = layers.GlobalAveragePooling1D()(x)
     x = layers.Dense(32, activation="relu")(x)
-    x = layers.Dropout(dropout_rate)(x)
+    x = layers.Dropout(head_dropout)(x)
     x = layers.Dense(16, activation="relu")(x)
     outputs = layers.Dense(1, name="temperature_prediction")(x)
 
