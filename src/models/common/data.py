@@ -2,9 +2,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from numpy.lib.stride_tricks import sliding_window_view
 
 from src.data.preprocess import preprocess
 from src.data.split_dataset import split_dataset
+from src.utils.city_coordinates import CITY_COORDINATES
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
@@ -32,6 +34,10 @@ FEATURE_COLUMNS = [
 ]
 
 TARGET_COLUMN = "temperature_2m"
+
+CITY_COLUMN = "city"
+CITY_VOCAB = {city: idx for idx, city in enumerate(sorted(CITY_COORDINATES))}
+NUM_CITIES = len(CITY_VOCAB)
 
 
 def _ensure_splits_exist(train_file, dev_file, test_file):
@@ -73,14 +79,53 @@ def create_sequences(
     feature_columns=FEATURE_COLUMNS,
     target_column=TARGET_COLUMN
 ):
-    X = []
-    y = []
-
     features = dataframe[feature_columns].values
     target = dataframe[target_column].values
 
-    for i in range(len(dataframe) - window_size - forecast_horizon + 1):
-        X.append(features[i:i + window_size])
-        y.append(target[i + window_size + forecast_horizon - 1])
+    num_windows = len(dataframe) - window_size - forecast_horizon + 1
+    if num_windows <= 0:
+        return np.array([]), np.array([])
 
-    return np.array(X), np.array(y)
+    # Vectorized equivalent of sliding a `window_size`-row block over `features`
+    # one row at a time and collecting `target` at each block's forecast offset.
+    # sliding_window_view adds the window as a new trailing axis, so `windows`
+    # has shape (num_rows - window_size + 1, num_features, window_size);
+    # moveaxis puts it back in (num_windows, window_size, num_features) order.
+    windows = sliding_window_view(features, window_shape=window_size, axis=0)
+    X = np.moveaxis(windows[:num_windows], -1, 1).copy()
+    y = target[window_size + forecast_horizon - 1: window_size + forecast_horizon - 1 + num_windows]
+
+    return X, y
+
+
+def create_city_aware_sequences(
+    dataframe,
+    window_size=WINDOW_SIZE,
+    forecast_horizon=FORECAST_HORIZON,
+    feature_columns=FEATURE_COLUMNS,
+    target_column=TARGET_COLUMN,
+    city_column=CITY_COLUMN,
+    city_vocab=CITY_VOCAB
+):
+    """Like create_sequences(), but builds each city's windows independently
+    so a window never spans two cities, and returns a parallel array of
+    integer city ids (one per window) alongside X/y. Reuses create_sequences()
+    per city group, so the weather/target windows themselves are identical to
+    what create_sequences() would produce for that city's rows alone.
+
+    Lives here (not in a model-specific module) so any architecture's
+    experiments can build identical city ids and windows for a fair
+    comparison."""
+    X_parts, y_parts, city_id_parts = [], [], []
+
+    for city, group in dataframe.groupby(city_column, sort=True):
+        X_city, y_city = create_sequences(
+            group, window_size, forecast_horizon, feature_columns, target_column
+        )
+        if len(X_city) == 0:
+            continue
+        X_parts.append(X_city)
+        y_parts.append(y_city)
+        city_id_parts.append(np.full(len(X_city), city_vocab[city], dtype=np.int32))
+
+    return np.concatenate(X_parts), np.concatenate(y_parts), np.concatenate(city_id_parts)
