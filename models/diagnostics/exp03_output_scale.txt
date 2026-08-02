@@ -1,0 +1,19 @@
+
+Scored with dropout OFF (Keras inference mode) on every split:
+------------------------------------------------------------------------------------------------------------
+TRAIN (inference mode)     n=200,000  MSE   6.011  MAE  2.043  RMSE  2.452  bias -1.700  slope 0.875  intercept +0.356
+DEV                        n=200,000  MSE   6.671  MAE  2.153  RMSE  2.583  bias -1.858  slope 0.872  intercept +0.419
+TEST                       n=200,000  MSE   6.039  MAE  2.043  RMSE  2.457  bias -1.667  slope 0.875  intercept +0.338
+------------------------------------------------------------------------------------------------------------
+
+Train MSE with dropout off : 6.011   (Keras reported 1.610 with dropout ON during training)
+Train -> dev MSE gap       : +0.661
+Bias share of train MSE    : 48.1%
+
+VERDICT: mis-scaled output. The distortion is present on the very data
+the model was trained on, so it is NOT a generalisation failure. Fix the
+head, not the regularisation. Start by moving or removing the Dropout
+between the two ReLU Dense layers in architecture.py, then retrain and
+re-run this script.
+
+Wrote diagnose_output_scale.json
