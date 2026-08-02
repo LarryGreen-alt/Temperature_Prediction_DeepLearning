@@ -1,3 +1,7 @@
+import tensorflow as tf
+
+tf.keras.utils.set_random_seed(42)
+
 from src.models.common.data import PROJECT_ROOT
 from src.models.transformer.training import run_training, timestamp_now
 from src.models.transformer.experiments.exp03_city_and_temperature_features.config import (
