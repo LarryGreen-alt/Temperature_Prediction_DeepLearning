@@ -1,120 +1,145 @@
 from __future__ import annotations
 
-import os
 import subprocess
+import sys
+from datetime import date, timedelta
+from pathlib import Path
 
-from src.data.collect_historical import (
-    save_historical_weather
-)
-
-from src.data.preprocess import (
-    preprocess
-)
-
-from src.data.split_dataset import (
-    split_dataset
-)
-
-from src.utils.city_coordinates import (
-    CITY_COORDINATES,
-    get_coordinates
-)
-
-os.makedirs("data/raw", exist_ok=True)
-os.makedirs("data/processed", exist_ok=True)
-os.makedirs("data/splits", exist_ok=True)
-os.makedirs("models", exist_ok=True)
-os.makedirs("models/checkpoints", exist_ok=True)
-os.makedirs("models/experiments", exist_ok=True)
+from src.data.collect_historical import save_historical_weather
+from src.data.preprocess import preprocess
+from src.data.split_dataset import split_dataset
+from src.utils.city_coordinates import CITY_COORDINATES, get_coordinates
 
 
-print()
+PROJECT_ROOT = Path(__file__).resolve().parent
+DATA_DIR = PROJECT_ROOT / "data"
+RAW_DIR = DATA_DIR / "raw"
+PROCESSED_DIR = DATA_DIR / "processed"
+SPLIT_DIR = DATA_DIR / "splits"
+MODELS_DIR = PROJECT_ROOT / "models"
 
-print("==============================")
-print("Weather Temperature AI")
-print("==============================")
-
-print("\nAvailable Cities\n")
-
-for city in CITY_COORDINATES:
-
-    print(f" - {city.title()}")
-
-print()
-
-while True:
-
-    city_name = input(
-        "Enter city: "
-    ).lower().strip()
-
-    if city_name in CITY_COORDINATES:
-        break
-
-    print("Invalid city.\n")
+MODEL_MODULES = {
+    "lstm": "src.models.lstm.train",
+    "transformer": "src.models.transformer.train",
+    "gru": "src.models.gru.train",
+}
 
 
-latitude, longitude = get_coordinates(city_name)
+def create_project_directories() -> None:
+    """Create the shared directories used by the weather pipeline."""
+    for directory in [RAW_DIR, PROCESSED_DIR, SPLIT_DIR, MODELS_DIR]:
+        directory.mkdir(parents=True, exist_ok=True)
 
-print("\nDownloading weather history...\n")
 
-save_historical_weather(
-    latitude=latitude,
-    longitude=longitude,
-    start_date="2015-01-01",
-    end_date="2026-07-01",
-    output_file=f"data/raw/{city_name}.csv"
-)
+def choose_city() -> str:
+    """Prompt until the user selects a configured city."""
+    print("\nAvailable Cities\n")
+    for city in CITY_COORDINATES:
+        print(f" - {city.title()}")
 
-print("\nPreprocessing...\n")
+    while True:
+        city_name = input("\nEnter city: ").strip().lower()
+        if city_name in CITY_COORDINATES:
+            return city_name
+        print("Invalid city. Choose one of the cities shown above.")
 
-preprocess()
 
-print("\nSplitting datasets...\n")
+def available_models() -> dict[str, str]:
+    """Return only models that currently provide a train.py module."""
+    available: dict[str, str] = {}
 
-split_dataset()
+    for model_name, module_name in MODEL_MODULES.items():
+        train_path = (
+            PROJECT_ROOT
+            / "src"
+            / "models"
+            / model_name
+            / "train.py"
+        )
+        if train_path.exists():
+            available[model_name] = module_name
 
-print()
+    return available
 
-print("==============================")
-print("Dataset Ready")
-print("==============================")
 
-print()
+def choose_model(models: dict[str, str]) -> str:
+    """Prompt until the user selects an available training module."""
+    if not models:
+        raise FileNotFoundError(
+            "No model training modules were found. Expected a file such as "
+            "src/models/lstm/train.py."
+        )
 
-print("Run the following next:")
+    print("\nAvailable Models\n")
+    for model_name in models:
+        print(f" - {model_name}")
 
-print()
+    while True:
+        model_choice = input("\nChoose model: ").strip().lower()
+        if model_choice in models:
+            return model_choice
+        print("Invalid model. Choose one of the models shown above.")
 
-print("python src/models/LSTM.py")
 
-print()
+def prepare_dataset(city_name: str) -> None:
+    """Download, preprocess, and chronologically split the selected data."""
+    latitude, longitude = get_coordinates(city_name)
+    raw_output = RAW_DIR / f"{city_name}.csv"
 
-print("After training:")
+    # Historical services generally have complete hourly data through yesterday.
+    end_date = (date.today() - timedelta(days=1)).isoformat()
 
-print()
+    print("\nDownloading weather history...\n")
+    save_historical_weather(
+        latitude=latitude,
+        longitude=longitude,
+        start_date="2015-01-01",
+        end_date=end_date,
+        output_file=str(raw_output),
+    )
 
-print("python src/models/model.py")
+    print("\nPreprocessing...\n")
+    preprocess()
 
-print("\nAvailable Models\n")
-print(" - lstm")
-print(" - transformer")
-print(" - gru")
+    print("\nSplitting datasets...\n")
+    split_dataset()
 
-while True:
+    print("\n==============================")
+    print("Dataset Ready")
+    print("==============================")
 
-    model_choice = input(
-        "Choose model: "
-    ).lower().strip()
 
-    if model_choice in ["lstm", "transformer", "gru"]:
-        break
+def run_training(model_name: str, module_name: str) -> None:
+    """Run training with the same Python interpreter as weather_main.py."""
+    print(f"\nStarting {model_name.upper()} training...\n")
 
-    print("Invalid model.\n")
+    subprocess.run(
+        [sys.executable, "-m", module_name],
+        cwd=PROJECT_ROOT,
+        check=True,
+    )
 
-print(f"\nStarting {model_choice.upper()} training...\n")
 
-subprocess.run(
-    ["python", "-m", f"src.models.{model_choice}.model"],
-    check=True
-)
+def main() -> None:
+    create_project_directories()
+
+    print("\n==============================")
+    print("Weather Temperature AI")
+    print("==============================")
+
+    city_name = choose_city()
+    prepare_dataset(city_name)
+
+    models = available_models()
+    model_choice = choose_model(models)
+    run_training(model_choice, models[model_choice])
+
+    print("\nTraining completed successfully.")
+
+    if model_choice == "lstm":
+        print("\nGenerate a live LSTM forecast with:")
+        print(f'  "{sys.executable}" -m src.models.lstm.predict --city {city_name}')
+
+
+if __name__ == "__main__":
+    main()
