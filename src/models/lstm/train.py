@@ -119,6 +119,131 @@ def validate_dataframe(
     return dataframe
 
 
+def summarize_split_ranges(
+    dataframe: pd.DataFrame,
+    split_name: str,
+) -> dict[str, tuple[pd.Timestamp, pd.Timestamp, int]]:
+    """
+    Return each location's timestamp range for leakage checks.
+
+    A trustworthy forecast benchmark must keep each location's training,
+    development, and test periods in chronological order.
+    """
+    time_column = detect_column(dataframe, TIME_COLUMN_CANDIDATES)
+    group_column = detect_column(dataframe, GROUP_COLUMN_CANDIDATES)
+
+    if time_column is None:
+        raise ValueError(
+            f"{split_name} has no recognized time column. "
+            "A chronological 2015-2026 split cannot be audited safely."
+        )
+
+    working = dataframe.copy()
+    working[time_column] = pd.to_datetime(
+        working[time_column],
+        errors="coerce",
+        utc=True,
+    )
+    if working[time_column].isna().any():
+        bad_count = int(working[time_column].isna().sum())
+        raise ValueError(
+            f"{split_name} has {bad_count} invalid timestamps "
+            f"in '{time_column}'."
+        )
+
+    if group_column is None:
+        grouped = [("all", working)]
+    else:
+        grouped = working.groupby(
+            group_column,
+            sort=False,
+            dropna=False,
+        )
+
+    summary: dict[str, tuple[pd.Timestamp, pd.Timestamp, int]] = {}
+    for group_name, group_df in grouped:
+        summary[str(group_name)] = (
+            group_df[time_column].min(),
+            group_df[time_column].max(),
+            int(len(group_df)),
+        )
+    return summary
+
+
+def audit_chronological_splits(
+    train_df: pd.DataFrame,
+    dev_df: pd.DataFrame,
+    test_df: pd.DataFrame,
+) -> dict:
+    """
+    Fail fast when train/dev/test periods overlap for the same location.
+    """
+    ranges = {
+        "train": summarize_split_ranges(train_df, "training data"),
+        "dev": summarize_split_ranges(dev_df, "development data"),
+        "test": summarize_split_ranges(test_df, "testing data"),
+    }
+
+    common_groups = (
+        set(ranges["train"])
+        & set(ranges["dev"])
+        & set(ranges["test"])
+    )
+    if not common_groups:
+        raise ValueError(
+            "No location/group appears in all three splits. "
+            "This prevents a comparable chronological evaluation."
+        )
+
+    violations: list[str] = []
+    print("\nChronological split audit")
+    print("-" * 80)
+
+    for group in sorted(common_groups):
+        train_start, train_end, train_rows = ranges["train"][group]
+        dev_start, dev_end, dev_rows = ranges["dev"][group]
+        test_start, test_end, test_rows = ranges["test"][group]
+
+        print(
+            f"{group}: "
+            f"train {train_start.date()}..{train_end.date()} "
+            f"({train_rows:,}) | "
+            f"dev {dev_start.date()}..{dev_end.date()} "
+            f"({dev_rows:,}) | "
+            f"test {test_start.date()}..{test_end.date()} "
+            f"({test_rows:,})"
+        )
+
+        if train_end >= dev_start:
+            violations.append(
+                f"{group}: training ends {train_end}, "
+                f"but development starts {dev_start}"
+            )
+        if dev_end >= test_start:
+            violations.append(
+                f"{group}: development ends {dev_end}, "
+                f"but testing starts {test_start}"
+            )
+
+    if violations:
+        raise ValueError(
+            "Chronological split leakage/overlap detected:\n- "
+            + "\n- ".join(violations)
+        )
+
+    return {
+        split_name: {
+            group: {
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "rows": rows,
+            }
+            for group, (start, end, rows) in split_ranges.items()
+        }
+        for split_name, split_ranges in ranges.items()
+    }
+
+
 def split_into_contiguous_groups(
     dataframe: pd.DataFrame,
     split_name: str,
@@ -256,26 +381,39 @@ def make_event_sample_weights(
     y: np.ndarray,
 ) -> np.ndarray:
     """
-    Slightly emphasize rapid temperature-change sequences.
+    Optionally emphasize forecasts with meaningful temperature transitions.
 
-    The old forecast missed sharp cooling events. These weights range from
-    1.0 to 1.5, so unusual events matter more without dominating training.
+    The weight uses both the sharpest hourly change and the full 24-hour
+    net change. Keep this optional and compare it through an ablation run.
     """
     last_observed = X[:, -1, TEMPERATURE_FEATURE_INDEX]
     path = np.concatenate(
         [last_observed[:, np.newaxis], y],
         axis=1,
     )
+
     largest_hourly_change = np.max(
         np.abs(np.diff(path, axis=1)),
         axis=1,
     )
-    event_strength = np.clip(
-        largest_hourly_change / 5.0,
+    net_change = np.abs(y[:, -1] - last_observed)
+
+    sharpness_strength = np.clip(
+        largest_hourly_change / 4.0,
         0.0,
         1.0,
     )
-    return (1.0 + 0.5 * event_strength).astype(np.float32)
+    transition_strength = np.clip(
+        net_change / 8.0,
+        0.0,
+        1.0,
+    )
+
+    return (
+        1.0
+        + 0.20 * sharpness_strength
+        + 0.20 * transition_strength
+    ).astype(np.float32)
 
 
 def calculate_metrics(
@@ -283,13 +421,21 @@ def calculate_metrics(
     predicted: np.ndarray,
 ) -> dict:
     errors = predicted - actual
+    absolute_errors = np.abs(errors)
+    per_sample_mae = np.mean(absolute_errors, axis=1)
+
     return {
-        "overall_mae": float(np.mean(np.abs(errors))),
+        "overall_mae": float(np.mean(absolute_errors)),
         "overall_rmse": float(np.sqrt(np.mean(np.square(errors)))),
         "overall_bias": float(np.mean(errors)),
-        "max_absolute_error": float(np.max(np.abs(errors))),
+        "max_absolute_error": float(np.max(absolute_errors)),
+        "median_sample_mae": float(np.median(per_sample_mae)),
+        "p90_sample_mae": float(np.percentile(per_sample_mae, 90)),
+        "p95_sample_mae": float(np.percentile(per_sample_mae, 95)),
+        "p99_sample_mae": float(np.percentile(per_sample_mae, 99)),
+        "endpoint_mae": float(np.mean(absolute_errors[:, -1])),
         "mae_by_hour": np.mean(
-            np.abs(errors),
+            absolute_errors,
             axis=0,
         ).astype(float).tolist(),
         "rmse_by_hour": np.sqrt(
@@ -300,6 +446,25 @@ def calculate_metrics(
             axis=0,
         ).astype(float).tolist(),
     }
+
+
+def calculate_group_metrics(
+    actual: np.ndarray,
+    predicted: np.ndarray,
+    metadata: list[SequenceMetadata],
+) -> dict[str, dict]:
+    groups = np.asarray([item.group for item in metadata], dtype=object)
+    results: dict[str, dict] = {}
+
+    for group in sorted(set(groups.tolist())):
+        mask = groups == group
+        results[group] = calculate_metrics(
+            actual[mask],
+            predicted[mask],
+        )
+        results[group]["samples"] = int(np.sum(mask))
+
+    return results
 
 
 def save_prediction_table(
@@ -344,8 +509,8 @@ def save_plots(
     figure_dir.mkdir(parents=True, exist_ok=True)
 
     history_dict = history.history
-    val_losses = np.asarray(history_dict["val_loss"], dtype=float)
-    best_epoch = int(np.argmin(val_losses))
+    val_mae = np.asarray(history_dict["val_mae"], dtype=float)
+    best_epoch = int(np.argmin(val_mae))
 
     plt.figure(figsize=(10, 6))
     plt.plot(history_dict["loss"], label="Training Loss")
@@ -357,7 +522,7 @@ def save_plots(
     )
     plt.title("Training vs Validation Loss")
     plt.xlabel("Epoch")
-    plt.ylabel("Huber Loss")
+    plt.ylabel("Composite Level + Change Loss")
     plt.legend()
     plt.grid(True)
     plt.savefig(
@@ -482,12 +647,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--epochs",
         type=int,
-        default=60,
+        default=100,
     )
     parser.add_argument(
         "--batch-size",
         type=int,
-        default=128,
+        default=64,
     )
     parser.add_argument(
         "--stride",
@@ -509,9 +674,12 @@ def parse_args() -> argparse.Namespace:
         default=1e-4,
     )
     parser.add_argument(
-        "--no-event-weighting",
+        "--event-weighting",
         action="store_true",
-        help="Disable extra weight for rapid temperature-change sequences.",
+        help=(
+            "Opt in to mild extra weighting for sharp or sustained "
+            "temperature transitions. Leave off for the clean baseline run."
+        ),
     )
     return parser.parse_args()
 
@@ -564,6 +732,12 @@ def main() -> None:
         "testing data",
     )
 
+    split_ranges = audit_chronological_splits(
+        train_df,
+        dev_df,
+        test_df,
+    )
+
     print("Creating contiguous forecast sequences...")
     X_train, y_train, train_metadata = create_sequences(
         train_df,
@@ -588,20 +762,32 @@ def main() -> None:
     print(f"Target shape        : {y_train.shape}")
     print(f"Window stride       : {args.stride}")
 
-    sample_weights = None
-    if not args.no_event_weighting:
-        sample_weights = make_event_sample_weights(
+    train_sample_weights = None
+    dev_sample_weights = None
+
+    if args.event_weighting:
+        train_sample_weights = make_event_sample_weights(
             X_train,
             y_train,
         )
+        dev_sample_weights = make_event_sample_weights(
+            X_dev,
+            y_dev,
+        )
         print(
-            "Event sample weights: "
-            f"mean={sample_weights.mean():.3f}, "
-            f"min={sample_weights.min():.3f}, "
-            f"max={sample_weights.max():.3f}"
+            "Training event weights: "
+            f"mean={train_sample_weights.mean():.3f}, "
+            f"min={train_sample_weights.min():.3f}, "
+            f"max={train_sample_weights.max():.3f}"
+        )
+        print(
+            "Development event weights: "
+            f"mean={dev_sample_weights.mean():.3f}, "
+            f"min={dev_sample_weights.min():.3f}, "
+            f"max={dev_sample_weights.max():.3f}"
         )
 
-    print("\nBuilding regularized multi-baseline LSTM...")
+    print("\nBuilding cross-attentive multi-baseline LSTM...")
     model = build_weather_model(
         X_train,
         learning_rate=args.learning_rate,
@@ -617,25 +803,26 @@ def main() -> None:
     callbacks = [
         tf.keras.callbacks.ModelCheckpoint(
             filepath=best_model_path,
-            monitor="val_loss",
+            monitor="val_mae",
             mode="min",
             save_best_only=True,
             verbose=1,
         ),
         tf.keras.callbacks.EarlyStopping(
-            monitor="val_loss",
+            monitor="val_mae",
             mode="min",
             min_delta=0.002,
-            patience=4,
+            patience=10,
             restore_best_weights=True,
             verbose=1,
         ),
         tf.keras.callbacks.ReduceLROnPlateau(
-            monitor="val_loss",
+            monitor="val_mae",
             mode="min",
             factor=0.5,
-            patience=2,
+            patience=4,
             min_delta=0.001,
+            cooldown=1,
             min_lr=1e-6,
             verbose=1,
         ),
@@ -650,8 +837,12 @@ def main() -> None:
     history = model.fit(
         X_train,
         y_train,
-        sample_weight=sample_weights,
-        validation_data=(X_dev, y_dev),
+        sample_weight=train_sample_weights,
+        validation_data=(
+            (X_dev, y_dev, dev_sample_weights)
+            if dev_sample_weights is not None
+            else (X_dev, y_dev)
+        ),
         epochs=args.epochs,
         batch_size=args.batch_size,
         callbacks=callbacks,
@@ -659,10 +850,38 @@ def main() -> None:
         verbose=1,
     )
 
-    # Always evaluate the checkpoint with the lowest validation loss.
+    # Always evaluate the checkpoint with the lowest unweighted validation MAE.
     best_model = load_weather_model(
         best_model_path,
         compile=True,
+    )
+
+    # These unweighted evaluations make train/dev/test MAE directly comparable,
+    # even when optional event weighting was used during optimization.
+    train_evaluation = best_model.evaluate(
+        X_train,
+        y_train,
+        verbose=0,
+        return_dict=True,
+    )
+    dev_evaluation = best_model.evaluate(
+        X_dev,
+        y_dev,
+        verbose=0,
+        return_dict=True,
+    )
+    dev_predictions = np.asarray(
+        best_model.predict(X_dev, verbose=0),
+        dtype=np.float32,
+    )
+    dev_forecast_metrics = calculate_metrics(
+        y_dev,
+        dev_predictions,
+    )
+    dev_group_metrics = calculate_group_metrics(
+        y_dev,
+        dev_predictions,
+        dev_metadata,
     )
 
     evaluation = best_model.evaluate(
@@ -705,6 +924,11 @@ def main() -> None:
         y_test,
         previous_day_predictions,
     )
+    group_metrics = calculate_group_metrics(
+        y_test,
+        predictions,
+        test_metadata,
+    )
 
     improvement_percent = float(
         100.0
@@ -731,16 +955,29 @@ def main() -> None:
     )
 
     best_epoch = int(
-        np.argmin(history.history["val_loss"])
+        np.argmin(history.history["val_mae"])
     ) + 1
 
     metrics = {
         "best_epoch": best_epoch,
-        "keras_evaluation": {
-            key: float(value)
-            for key, value in evaluation.items()
+        "unweighted_evaluation": {
+            "train": {
+                key: float(value)
+                for key, value in train_evaluation.items()
+            },
+            "dev": {
+                key: float(value)
+                for key, value in dev_evaluation.items()
+            },
+            "test": {
+                key: float(value)
+                for key, value in evaluation.items()
+            },
         },
+        "development_model": dev_forecast_metrics,
+        "development_metrics_by_group": dev_group_metrics,
         "improved_model": forecast_metrics,
+        "test_metrics_by_group": group_metrics,
         "persistence_baseline": persistence_metrics,
         "previous_day_baseline": previous_day_metrics,
         "improvement_vs_previous_day_mae_percent": improvement_percent,
@@ -750,8 +987,11 @@ def main() -> None:
             "epochs_requested": args.epochs,
             "epochs_completed": len(history.history["loss"]),
             "batch_size": args.batch_size,
-            "event_weighting": not args.no_event_weighting,
+            "event_weighting": args.event_weighting,
+            "selection_metric": "val_mae",
+            "random_seed": RANDOM_SEED,
         },
+        "split_ranges": split_ranges,
     }
 
     with metrics_path.open("w", encoding="utf-8") as file:
@@ -770,6 +1010,12 @@ def main() -> None:
         "created_at": timestamp,
         "best_epoch": best_epoch,
         "training_stride": args.stride,
+        "batch_size": args.batch_size,
+        "learning_rate": args.learning_rate,
+        "weight_decay": args.weight_decay,
+        "event_weighting": args.event_weighting,
+        "selection_metric": "val_mae",
+        "random_seed": RANDOM_SEED,
         "training_files": {
             "train": str(args.train_csv.resolve()),
             "dev": str(args.dev_csv.resolve()),
@@ -785,6 +1031,22 @@ def main() -> None:
     print("-" * 64)
     print(f"Best validation epoch : {best_epoch}")
     print(
+        f"Train MAE (unweighted): "
+        f"{train_evaluation['mae']:.4f} °C"
+    )
+    print(
+        f"Dev MAE (unweighted)  : "
+        f"{dev_evaluation['mae']:.4f} °C"
+    )
+    print(
+        f"Dev p90 sample MAE    : "
+        f"{dev_forecast_metrics['p90_sample_mae']:.4f} °C"
+    )
+    print(
+        f"Dev hour-24 MAE       : "
+        f"{dev_forecast_metrics['endpoint_mae']:.4f} °C"
+    )
+    print(
         f"Test MAE              : "
         f"{forecast_metrics['overall_mae']:.4f} °C"
     )
@@ -795,6 +1057,22 @@ def main() -> None:
     print(
         f"Overall bias          : "
         f"{forecast_metrics['overall_bias']:+.4f} °C"
+    )
+    print(
+        f"Median sample MAE     : "
+        f"{forecast_metrics['median_sample_mae']:.4f} °C"
+    )
+    print(
+        f"90th-percentile MAE   : "
+        f"{forecast_metrics['p90_sample_mae']:.4f} °C"
+    )
+    print(
+        f"95th-percentile MAE   : "
+        f"{forecast_metrics['p95_sample_mae']:.4f} °C"
+    )
+    print(
+        f"Hour-24 endpoint MAE  : "
+        f"{forecast_metrics['endpoint_mae']:.4f} °C"
     )
     print(
         f"Persistence MAE       : "

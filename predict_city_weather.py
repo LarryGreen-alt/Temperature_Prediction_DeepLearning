@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from importlib import import_module
 from math import ceil
 from pathlib import Path
 import json
@@ -415,6 +416,46 @@ def resolve_feature_columns(
     return feature_columns
 
 
+def get_model_custom_objects(model_type: str) -> dict[str, Any]:
+    """
+    Import custom Keras layers before deserializing a saved model.
+
+    Keras stores the LSTM baseline layer as
+    ``Weather>TemperatureBaselines``. Importing the defining module runs its
+    registration decorator, while ``custom_objects`` also supports models
+    saved before or without that registration.
+    """
+    if model_type != "lstm":
+        return {}
+
+    module_name = "src.models.lstm.model"
+    class_name = "TemperatureBaselines"
+
+    try:
+        model_module = import_module(module_name)
+    except Exception as error:
+        raise ImportError(
+            "The LSTM model uses the custom TemperatureBaselines layer, but "
+            f"its module could not be imported: {module_name}.\n"
+            "Confirm that src/models/lstm/model.py exists and imports without "
+            f"errors. Original import error: {error}"
+        ) from error
+
+    custom_class = getattr(model_module, class_name, None)
+
+    if custom_class is None:
+        raise ImportError(
+            f"{module_name} does not define {class_name}. The prediction code "
+            "must use the same custom-layer implementation that was present "
+            "when weather_lstm.keras was saved."
+        )
+
+    return {
+        class_name: custom_class,
+        f"Weather>{class_name}": custom_class,
+    }
+
+
 def load_selected_model(
     model_type: str,
 ) -> tuple[tf.keras.Model, Path, Path, dict[str, Any], list[str]]:
@@ -446,9 +487,11 @@ def load_selected_model(
         print("Config:    no model_config.json found; using inferred settings")
 
     try:
+        custom_objects = get_model_custom_objects(model_type)
         model = tf.keras.models.load_model(
             model_path,
             compile=False,
+            custom_objects=custom_objects,
         )
     except Exception as error:
         raise RuntimeError(
