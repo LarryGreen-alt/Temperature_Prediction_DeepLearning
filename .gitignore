@@ -80,8 +80,9 @@ target/
 *.pkl
 
 # Data files
-data/raw/*.csv
+# data/raw/*.csv is tracked via Git LFS (see .gitattributes), not ignored
 data/processed/*.csv
+data/splits/*.csv
 
 # Generated datasets
 data/splits/

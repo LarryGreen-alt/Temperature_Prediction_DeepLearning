@@ -2,6 +2,95 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import json
+
+from tensorflow.keras import layers
+from tensorflow.keras.models import Model
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+
+import matplotlib.pyplot as plt
+
+from src.models.common.data import (
+    PROJECT_ROOT,
+    TRAIN_FILE,
+    WINDOW_SIZE,
+    FORECAST_HORIZON,
+    load_splits,
+    create_sequences
+)
+
+# ------------------------------------
+# Configuration
+# ------------------------------------
+
+BATCH_SIZE = 32
+EPOCHS = 25
+
+# ------------------------------------
+# Project Paths
+# ------------------------------------
+
+DATA_DIR = PROJECT_ROOT / "data"
+MODEL_DIR = PROJECT_ROOT / "models"
+
+# ------------------------------------
+# Output Directories
+# ------------------------------------
+
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
+MODEL_NAME = "LSTM"
+
+MODEL_ROOT = (
+    PROJECT_ROOT
+    / "models"
+    / MODEL_NAME
+)
+
+EXPERIMENT_DIR = (
+    MODEL_ROOT
+    / "experiments"
+    / timestamp
+)
+
+FIGURE_DIR = (
+    EXPERIMENT_DIR
+    / "figures"
+)
+
+CHECKPOINT_DIR = (
+    MODEL_ROOT
+    / "checkpoints"
+)
+
+# Create directories
+
+EXPERIMENT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+FIGURE_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+CHECKPOINT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
+
+# Files
+
+MODEL_OUTPUT = (
+    EXPERIMENT_DIR
+    / "weather_lstm.keras"
+)
+
+TRAINING_HISTORY_FILE = (
+    EXPERIMENT_DIR
+    / "training_history.csv"
+)
 
 # Suppress TensorFlow INFO messages such as the oneDNN CPU notice.
 # This must be set before importing TensorFlow.
@@ -16,157 +105,116 @@ from tensorflow.keras.models import Model
 INPUT_HOURS = 72
 OUTPUT_HOURS = 24
 
-# Training defaults. The epoch count is only a maximum because EarlyStopping
-# will restore the best validation-loss weights and end training when progress
-# has stalled.
-DEFAULT_MAX_EPOCHS = 100
-DEFAULT_BATCH_SIZE = 64
-DEFAULT_EARLY_STOPPING_PATIENCE = 10
-DEFAULT_LR_PATIENCE = 4
-DEFAULT_MIN_DELTA = 1e-4
+# ------------------------------------
+# Load datasets
+# ------------------------------------
 
-FEATURE_COLUMNS = [
-    "temperature_2m",
-    "relative_humidity_2m",
-    "surface_pressure",
-    "wind_speed_10m",
-    "cloud_cover",
-    "precipitation",
-    "is_day",
-    "hour_sin",
-    "hour_cos",
-    "day_sin",
-    "day_cos",
-]
+print("Loading datasets...")
 
-TARGET_COLUMN = "temperature_2m"
-TEMPERATURE_FEATURE_INDEX = FEATURE_COLUMNS.index(TARGET_COLUMN)
-HOUR_SIN_INDEX = FEATURE_COLUMNS.index("hour_sin")
-HOUR_COS_INDEX = FEATURE_COLUMNS.index("hour_cos")
-DAY_SIN_INDEX = FEATURE_COLUMNS.index("day_sin")
-DAY_COS_INDEX = FEATURE_COLUMNS.index("day_cos")
+print("PROJECT_ROOT:", PROJECT_ROOT)
+print("TRAIN_FILE:", TRAIN_FILE)
+print("Exists:", TRAIN_FILE.exists())
 
+train_df, dev_df, test_df = load_splits()
 
-@tf.keras.utils.register_keras_serializable(package="Weather")
-class TemperatureBaselines(layers.Layer):
-    """
-    Produce three useful baseline forecasts:
+# ------------------------------------
+# Create Sequences
+# ------------------------------------
 
-    1. Same 24 hours from the previous day.
-    2. Persistence: repeat the latest observed temperature.
-    3. A damped recent-trend forecast.
+print("Creating sequences...")
 
-    The decoder learns how much to trust each baseline at every horizon.
-    """
+X_train, y_train = create_sequences(train_df)
 
-    def __init__(
-        self,
-        output_hours: int = OUTPUT_HOURS,
-        feature_index: int = TEMPERATURE_FEATURE_INDEX,
-        trend_lookback: int = 6,
-        trend_decay_hours: float = 8.0,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.output_hours = int(output_hours)
-        self.feature_index = int(feature_index)
-        self.trend_lookback = int(trend_lookback)
-        self.trend_decay_hours = float(trend_decay_hours)
+X_dev, y_dev = create_sequences(dev_df)
 
-    def call(self, inputs):
-        temperature = inputs[:, :, self.feature_index]
+X_test, y_test = create_sequences(test_df)
 
-        previous_day = temperature[:, -self.output_hours :]
+print()
 
-        latest = temperature[:, -1:]
-        persistence = tf.repeat(latest, repeats=self.output_hours, axis=1)
+print("Training samples :", len(X_train))
+print("Development samples :", len(X_dev))
+print("Testing samples :", len(X_test))
 
-        earlier = temperature[:, -(self.trend_lookback + 1) : -self.trend_lookback]
-        slope_per_hour = (latest - earlier) / tf.cast(
-            self.trend_lookback,
-            inputs.dtype,
-        )
+print()
 
-        horizon = tf.cast(
-            tf.range(1, self.output_hours + 1)[tf.newaxis, :],
-            inputs.dtype,
-        )
-        damping = tf.exp(
-            -horizon / tf.cast(self.trend_decay_hours, inputs.dtype)
-        )
-        trend = persistence + slope_per_hour * horizon * damping
+print("Input shape:", X_train.shape)
 
-        return tf.stack(
-            [previous_day, persistence, trend],
-            axis=-1,
-        )
+# ------------------------------------
+# Normalization Layer
+# ------------------------------------
 
-    def get_config(self):
-        config = super().get_config()
-        config.update(
-            {
-                "output_hours": self.output_hours,
-                "feature_index": self.feature_index,
-                "trend_lookback": self.trend_lookback,
-                "trend_decay_hours": self.trend_decay_hours,
-            }
-        )
-        return config
+normalizer = layers.Normalization()
 
+normalizer.adapt(
 
-@tf.keras.utils.register_keras_serializable(package="Weather")
-class FutureCalendarFeatures(layers.Layer):
-    """
-    Rotate the final observed cyclical time features into the next 24 hours.
+    X_train.reshape(
 
-    This gives the decoder the actual future time-of-day and approximate
-    day-of-year position instead of relying only on a generic horizon number.
-    """
+        -1,
+        X_train.shape[-1]
 
-    def __init__(
-        self,
-        output_hours: int = OUTPUT_HOURS,
-        hour_sin_index: int = HOUR_SIN_INDEX,
-        hour_cos_index: int = HOUR_COS_INDEX,
-        day_sin_index: int = DAY_SIN_INDEX,
-        day_cos_index: int = DAY_COS_INDEX,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
-        self.output_hours = int(output_hours)
-        self.hour_sin_index = int(hour_sin_index)
-        self.hour_cos_index = int(hour_cos_index)
-        self.day_sin_index = int(day_sin_index)
-        self.day_cos_index = int(day_cos_index)
+    )
 
-    def call(self, inputs):
-        dtype = inputs.dtype
-        horizon = tf.cast(
-            tf.range(1, self.output_hours + 1)[tf.newaxis, :],
-            dtype,
-        )
+)
 
-        last_hour_sin = inputs[:, -1, self.hour_sin_index][:, tf.newaxis]
-        last_hour_cos = inputs[:, -1, self.hour_cos_index][:, tf.newaxis]
-        last_day_sin = inputs[:, -1, self.day_sin_index][:, tf.newaxis]
-        last_day_cos = inputs[:, -1, self.day_cos_index][:, tf.newaxis]
+print("Normalization complete.")
 
-        hour_angle = horizon * tf.cast(2.0 * np.pi / 24.0, dtype)
-        hour_cos_rotation = tf.cos(hour_angle)
-        hour_sin_rotation = tf.sin(hour_angle)
+# ------------------------------------
+# Build Model
+# ------------------------------------
 
-        future_hour_sin = (
-            last_hour_sin * hour_cos_rotation
-            + last_hour_cos * hour_sin_rotation
-        )
-        future_hour_cos = (
-            last_hour_cos * hour_cos_rotation
-            - last_hour_sin * hour_sin_rotation
-        )
+inputs = tf.keras.Input(
 
-        day_angle = horizon * tf.cast(2.0 * np.pi / (24.0 * 365.25), dtype)
-        day_cos_rotation = tf.cos(day_angle)
-        day_sin_rotation = tf.sin(day_angle)
+    shape=(
+        WINDOW_SIZE,
+        X_train.shape[-1]
+    ),
+
+    name="weather_sequence"
+
+)
+
+# Normalize every timestep
+
+x = layers.TimeDistributed(
+
+    normalizer
+
+)(inputs)
+
+# ------------------------------------
+# LSTM Stack
+# ------------------------------------
+
+x = layers.LSTM(
+
+    64,
+    return_sequences=True
+
+)(x)
+
+x = layers.Dropout(
+
+    0.20
+
+)(x)
+
+x = layers.LSTM(
+
+    32
+
+)(x)
+
+x = layers.Dropout(
+
+    0.20
+
+)(x)
+
+# ------------------------------------
+# Dense Layers
+# ------------------------------------
+
+x = layers.Dense(
 
         future_day_sin = (
             last_day_sin * day_cos_rotation

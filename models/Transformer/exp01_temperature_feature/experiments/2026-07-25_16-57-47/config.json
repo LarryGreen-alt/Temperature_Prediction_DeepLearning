@@ -1,0 +1,11 @@
+{
+    "window_size": 24,
+    "forecast_horizon": 3,
+    "d_model": 64,
+    "num_heads": 4,
+    "num_encoder_layers": 2,
+    "ff_dim": 128,
+    "dropout_rate": 0.2,
+    "batch_size": 32,
+    "epochs": 25
+}

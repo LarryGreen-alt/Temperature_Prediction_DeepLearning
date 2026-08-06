@@ -37,7 +37,7 @@ def preprocess():
         # -----------------------------
         # City name from filename
         # -----------------------------
-        city = os.path.basename(file).split("_")[0]
+        city = os.path.splitext(os.path.basename(file))[0].replace("_", " ")
         df["city"] = city
 
         # -----------------------------
