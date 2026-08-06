@@ -1,5 +1,6 @@
-import os
+from __future__ import annotations
 
+import os
 import subprocess
 
 from src.data.collect_historical import (

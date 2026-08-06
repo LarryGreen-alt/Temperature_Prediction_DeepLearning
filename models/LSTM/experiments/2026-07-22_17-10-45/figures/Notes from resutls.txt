@@ -1,0 +1,176 @@
+# LSTM Temperature Model Revision Notes
+
+## Purpose
+
+This revision keeps the existing training script, directory structure, two-layer LSTM, regularization, callbacks, saved metrics, prediction CSV, and figures. It corrects the parts that became inconsistent when the model was changed from a single three-hour prediction to a full 1–24-hour forecast.
+
+## Main revisions
+
+### 1. One consistent forecast configuration
+
+The old file contained both `WINDOW_SIZE = 24` and `INPUT_HOURS = 72`. The sequence generator created 72-hour inputs, while the model still expected 24-hour inputs. The revision uses only:
+
+```python
+INPUT_HOURS = 72
+OUTPUT_HOURS = 24
+```
+
+The model input and sequence generator now use the same values.
+
+### 2. Past temperature remains an input
+
+`temperature_2m` remains in `FEATURE_COLUMNS`. This gives the LSTM the current temperature level and recent temperature movement instead of making it infer temperature only from humidity, pressure, clouds, and calendar features.
+
+This is not target leakage because only temperatures observed before the forecast start are used.
+
+### 3. Full hours 1–24 output
+
+The final Dense layer now returns 24 values instead of one value. Each training target contains the next 24 hourly temperatures.
+
+Output shape:
+
+```text
+(samples, 24)
+```
+
+### 4. Previous-day residual forecast
+
+The two existing LSTM layers are retained. The network now predicts an adjustment to the last 24 observed temperatures:
+
+```text
+forecast = previous-day temperatures + learned adjustment
+```
+
+This gives the model a strong daily-cycle starting point while still allowing it to respond to pressure, humidity, wind, cloud, and precipitation changes.
+
+Set this to `False` for a direct 24-value prediction without the baseline:
+
+```python
+USE_PREVIOUS_DAY_BASELINE = False
+```
+
+### 5. Duplicate compilation removed
+
+The old model was compiled first with Huber loss and then compiled again with MSE. The second call silently replaced the first settings.
+
+The revision compiles once with:
+
+- Adam learning rate `3e-4`
+- Gradient clipping with `clipnorm=1.0`
+- Huber loss
+- MAE and RMSE metrics
+
+### 6. City and timestamp protection
+
+The sequence generator automatically looks for common timestamp and city/location columns. When found, it:
+
+- sorts each city chronologically;
+- prevents one sequence from crossing from one city into another;
+- prevents sequences from crossing missing-hour gaps.
+
+Recognized timestamp names:
+
+```text
+time, datetime, timestamp, date
+```
+
+Recognized location names:
+
+```text
+city, location, location_name
+```
+
+Update the candidate lists near the top of the file when your CSV uses different names.
+
+### 7. Correct multi-output evaluation
+
+The old prediction table attempted to place a two-dimensional target array directly into a DataFrame and flattened only the prediction array. The revision saves a long-format CSV with:
+
+- sample number;
+- forecast hour;
+- city/location group when available;
+- actual temperature;
+- predicted temperature;
+- error.
+
+It also calculates MAE, RMSE, and bias separately for forecast hours 1 through 24.
+
+### 8. Baseline comparisons
+
+The revised test section compares the LSTM against:
+
+- persistence: all future hours equal the last observed temperature;
+- previous day: the next 24 hours equal the last observed 24-hour cycle.
+
+The LSTM should beat these simple baselines before additional architecture complexity is added.
+
+### 9. Files for `predict.py` and `test.py`
+
+The training script now writes these stable files:
+
+```text
+models/LSTM/latest/weather_lstm.keras
+models/LSTM/latest/model_config.json
+```
+
+`predict.py` should:
+
+1. Load both latest files.
+2. Read the exact `feature_columns` order from `model_config.json`.
+3. Supply the most recent 72 hourly rows with shape `(1, 72, number_of_features)`.
+4. Receive a 24-value result.
+5. Return only the first `requested_hours` values when the user requests between 1 and 24 hours.
+
+`test.py` should:
+
+1. Load the latest model and configuration.
+2. Recreate sequences using the same 72-hour input and 24-hour output rules.
+3. Report overall metrics and metrics by forecast hour.
+4. Compare the model against persistence and previous-day baselines.
+
+Those scripts are applicable and useful, but they are not required for training. They should be revised after this model because their expected input/output shapes have changed.
+
+## Data checks before retraining
+
+Confirm that:
+
+- train, development, and test files are chronological rather than randomly mixed;
+- each city has hourly timestamps;
+- cyclical day features represent day of year rather than day of month;
+- missing hourly observations are not silently filled by unrelated rows;
+- the test period occurs after the training and development periods.
+
+A useful date split for data through July 2026 is:
+
+```text
+Training:   January 2015 through December 2023
+Validation: January 2024 through December 2024
+Testing:    January 2025 through July 2026
+```
+
+## Expected result files
+
+Each run creates an experiment folder containing:
+
+```text
+weather_lstm.keras
+model_config.json
+model_summary.txt
+training_history.csv
+metrics.json
+predictions.csv
+figures/loss_curve.png
+figures/mae_curve.png
+figures/forecast_24h_example.png
+figures/mae_by_forecast_hour.png
+```
+
+## First results to inspect
+
+After retraining, check these values in order:
+
+1. Overall LSTM MAE versus previous-day baseline MAE.
+2. Bias by forecast hour, especially whether predictions remain consistently too warm.
+3. MAE for hours 1, 6, 12, 18, and 24.
+4. Validation loss behavior after the first epoch.
+5. The example 24-hour forecast shape and temperature level.

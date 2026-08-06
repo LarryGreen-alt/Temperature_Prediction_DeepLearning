@@ -84,6 +84,12 @@ target/
 data/processed/*.csv
 data/splits/*.csv
 
+# Generated datasets
+data/splits/
+
+# Optional
+*.csv
+
 # IPython
 profile_default/
 ipython_config.py
@@ -176,7 +182,7 @@ venv.bak/
 # Models
 models/*.pkl
 models/*.joblib
-models/*.h5
+models/*.h5f
 
 # mypy
 .mypy_cache/

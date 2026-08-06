@@ -1,0 +1,2 @@
+The Source (Src) folder hold the API calls, data structuring/processing, the LSTM and Transformer models, and utilites that 
+assist with the data collection over the specific locations we are examining from.
