@@ -1,6 +1,6 @@
 from src.models.common.data import PROJECT_ROOT
 from src.models.transformer.training import run_training, timestamp_now
-from src.models.transformer.experiments.exp03_city_and_temperature_features.config import (
+from src.models.transformer.experiments.exp03_temperature_city.config import (
     CONFIG, EXPERIMENT_NAME, FEATURE_COLUMNS, CITY_EMBED_DIM
 )
 
@@ -12,5 +12,6 @@ run_training(
     CONFIG, experiment_dir, checkpoint_path,
     feature_columns=FEATURE_COLUMNS,
     city_aware=True,
-    city_embed_dim=CITY_EMBED_DIM
+    city_embed_dim=CITY_EMBED_DIM,
+    experiment_name=EXPERIMENT_NAME,
 )

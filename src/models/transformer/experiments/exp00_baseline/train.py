@@ -1,6 +1,6 @@
 from src.models.common.data import PROJECT_ROOT
 from src.models.transformer.training import run_training, timestamp_now
-from src.models.transformer.experiments.exp01_temperature_feature.config import (
+from src.models.transformer.experiments.exp00_baseline.config import (
     CONFIG, EXPERIMENT_NAME, FEATURE_COLUMNS
 )
 
@@ -8,4 +8,8 @@ MODEL_ROOT = PROJECT_ROOT / "models" / "Transformer" / EXPERIMENT_NAME
 experiment_dir = MODEL_ROOT / "experiments" / timestamp_now()
 checkpoint_path = MODEL_ROOT / "checkpoints" / "best.keras"
 
-run_training(CONFIG, experiment_dir, checkpoint_path, feature_columns=FEATURE_COLUMNS)
+run_training(
+    CONFIG, experiment_dir, checkpoint_path,
+    feature_columns=FEATURE_COLUMNS,
+    experiment_name=EXPERIMENT_NAME,
+)
