@@ -6,12 +6,9 @@ README/plan), the multi-horizon windowing in src/models/common/data.py is
 correct; if it's flat, enormous, or non-monotonic, the windowing is wrong.
 
 This also delivers the cross-track comparison itself: both tracks scored on
-identical test windows with identical metric code (imported directly from
-src.models.lstm.train), leaving city-set size as the one stated difference.
-
-Baselines are not included yet: persistence and previous-day on the shared
-windows arrive with the multi-horizon evaluation module (common/evaluation.py),
-after which this file needs regenerating.
+identical test windows with identical metric code (src.models.common.evaluation,
+which uses the same key names as src.models.lstm.train), leaving city-set size
+as the one stated difference.
 """
 
 import json
@@ -19,9 +16,15 @@ import json
 import numpy as np
 import pandas as pd
 
-from src.models.common.data import FEATURE_COLUMNS, PROJECT_ROOT, TEST_FILE, create_multistep_sequences
+from src.models.common.data import (
+    FEATURE_COLUMNS,
+    PROJECT_ROOT,
+    TARGET_COLUMN,
+    TEST_FILE,
+    create_multistep_sequences,
+)
+from src.models.common.evaluation import evaluate_and_save
 from src.models.lstm.model import load_weather_model
-from src.models.lstm.train import calculate_metrics
 
 LSTM_MODEL_PATH = PROJECT_ROOT / "models" / "LSTM" / "latest" / "weather_lstm.keras"
 OUTPUT_DIR = PROJECT_ROOT / "models" / "comparison" / "lstm_on_shared_test_split"
@@ -34,28 +37,33 @@ def main():
     print(f"Test rows: {len(test_df)}, cities: {test_df['city'].nunique()}")
 
     print("Building 72h->24h test windows in canonical feature order...")
-    X_test, y_test = create_multistep_sequences(test_df)
+    X_test, y_test, city_ids = create_multistep_sequences(test_df, with_city_ids=True)
     print(f"X_test shape: {X_test.shape}, y_test shape: {y_test.shape}")
+
+    # Segmentation and stride depend only on the frame and window sizes, not
+    # the feature set, so this reproduces the same windows as X_test/y_test.
+    temperature_history = create_multistep_sequences(
+        test_df, feature_columns=[TARGET_COLUMN]
+    )[0][:, :, 0]
 
     print(f"Loading LSTM model from {LSTM_MODEL_PATH}...")
     model = load_weather_model(LSTM_MODEL_PATH, compile=False)
 
     print("Running inference...")
-    y_pred = model.predict(X_test, batch_size=256, verbose=1)
-
-    model_metrics = calculate_metrics(y_test, y_pred)
-    output = {
-        "improved_model": model_metrics,
-        "model_path": str(LSTM_MODEL_PATH.relative_to(PROJECT_ROOT)),
-        "num_cities": int(test_df["city"].nunique()),
-        "num_windows": int(len(X_test)),
-    }
-
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     metrics_path = OUTPUT_DIR / "metrics.json"
-    with metrics_path.open("w") as f:
-        json.dump(output, f, indent=2)
+    predictions_path = OUTPUT_DIR / "predictions_sample.csv"
 
+    metrics, _ = evaluate_and_save(
+        model, X_test, y_test, temperature_history, metrics_path, predictions_path,
+        city_ids=city_ids,
+    )
+
+    metrics["model_path"] = str(LSTM_MODEL_PATH.relative_to(PROJECT_ROOT))
+    with metrics_path.open("w") as f:
+        json.dump(metrics, f, indent=2)
+
+    model_metrics = metrics["improved_model"]
     print(f"\nSaved metrics to {metrics_path}")
     print(f"overall_mae={model_metrics['overall_mae']:.4f}  overall_rmse={model_metrics['overall_rmse']:.4f}  "
           f"overall_bias={model_metrics['overall_bias']:.4f}")
