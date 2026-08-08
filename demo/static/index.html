@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Live Temperature Forecast Demo</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <style>
+    :root { color-scheme: light; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      max-width: 900px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #666; margin-top: 0; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .controls {
+      display: flex;
+      gap: 1rem;
+      align-items: flex-end;
+      flex-wrap: wrap;
+      margin-bottom: 1.5rem;
+    }
+    .field { display: flex; flex-direction: column; gap: 0.25rem; }
+    label { font-size: 0.85rem; font-weight: 600; }
+    select {
+      padding: 0.5rem;
+      font-size: 1rem;
+      min-width: 220px;
+    }
+    button {
+      padding: 0.6rem 1.4rem;
+      font-size: 1rem;
+      font-weight: 600;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:disabled { background: #aac4ee; cursor: default; }
+    button:hover:not(:disabled) { background: #1558b3; }
+    #status { min-height: 1.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    #status.error { color: #c5221f; }
+    #status.loading { color: #666; }
+    #chart-container { position: relative; height: 420px; }
+    footer { margin-top: 2rem; color: #888; font-size: 0.8rem; }
+  </style>
+</head>
+<body>
+  <h1>Live 24-Hour Temperature Forecast</h1>
+  <p class="subtitle">
+    Live data from Open-Meteo's forecast endpoint, not the ERA5 reanalysis
+    product the models were trained on.
+  </p>
+
+  <div class="controls">
+    <div class="field">
+      <label for="city-select">City</label>
+      <select id="city-select"></select>
+    </div>
+    <div class="field">
+      <label for="model-select">Model</label>
+      <select id="model-select">
+        <option value="transformer">Transformer</option>
+        <option value="lstm">LSTM</option>
+      </select>
+    </div>
+    <button id="predict-button">Predict</button>
+  </div>
+
+  <div id="status"></div>
+  <div id="chart-container">
+    <canvas id="forecast-chart"></canvas>
+  </div>
+
+  <footer>Model weights and features are fixed; only the input weather window is fetched live.</footer>
+
+  <script>
+    const citySelect = document.getElementById("city-select");
+    const modelSelect = document.getElementById("model-select");
+    const predictButton = document.getElementById("predict-button");
+    const statusEl = document.getElementById("status");
+    let chart = null;
+
+    function setStatus(message, kind) {
+      statusEl.textContent = message || "";
+      statusEl.className = kind || "";
+    }
+
+    async function loadCities() {
+      const response = await fetch("/api/cities");
+      const cities = await response.json();
+      citySelect.innerHTML = cities
+        .map((c) => `<option value="${c.key}">${c.label}</option>`)
+        .join("");
+    }
+
+    function renderChart(data) {
+      const observedLabels = data.last_observed.map((p) => p.time);
+      const forecastLabels = data.forecast.map((p) => p.time);
+      const labels = observedLabels.concat(forecastLabels);
+
+      const observedValues = data.last_observed.map((p) => p.temperature_c);
+      const forecastValues = data.forecast.map((p) => p.temperature_c);
+
+      // Bridge the two lines at the handoff point so the chart reads as one
+      // continuous curve instead of a gap.
+      const observedSeries = observedValues.concat(
+        new Array(forecastValues.length).fill(null)
+      );
+      const forecastSeries = new Array(observedValues.length - 1)
+        .fill(null)
+        .concat([observedValues[observedValues.length - 1]])
+        .concat(forecastValues);
+
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById("forecast-chart"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            {
+              label: "Observed (last 72h)",
+              data: observedSeries,
+              borderColor: "#5f6368",
+              pointRadius: 0,
+              tension: 0.1,
+            },
+            {
+              label: `Forecast (next 24h, ${data.model})`,
+              data: forecastSeries,
+              borderColor: "#1a73e8",
+              pointRadius: 0,
+              borderDash: [6, 4],
+              tension: 0.1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: false,
+          scales: {
+            x: {
+              ticks: { maxTicksLimit: 12, autoSkip: true },
+            },
+            y: {
+              title: { display: true, text: "Temperature (C)" },
+            },
+          },
+        },
+      });
+    }
+
+    async function runPrediction() {
+      const city = citySelect.value;
+      const model = modelSelect.value;
+
+      predictButton.disabled = true;
+      setStatus("Fetching live weather data and running the model...", "loading");
+
+      try {
+        const response = await fetch(
+          `/api/predict?city=${encodeURIComponent(city)}&model=${encodeURIComponent(model)}`
+        );
+        if (!response.ok) {
+          const body = await response.json().catch(() => ({}));
+          throw new Error(body.detail || `Request failed (${response.status})`);
+        }
+        const data = await response.json();
+        renderChart(data);
+        setStatus("", "");
+      } catch (error) {
+        setStatus(`Error: ${error.message}`, "error");
+      } finally {
+        predictButton.disabled = false;
+      }
+    }
+
+    predictButton.addEventListener("click", runPrediction);
+    loadCities();
+  </script>
+</body>
+</html>
