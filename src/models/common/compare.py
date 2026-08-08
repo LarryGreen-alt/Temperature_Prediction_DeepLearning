@@ -3,12 +3,18 @@
 Loads each model's most recent experiment (the one with the highest timestamp
 that contains a metrics.json), writes a comparison table + bar chart to its
 own subfolder under models/comparison/, named after the models compared.
+
+Every metrics.json in this project (both tracks) is nested under an
+"improved_model" key holding overall_mae/overall_rmse/mae_by_hour/... (see
+src.models.common.evaluation.evaluate_and_save) -- load_row reads that
+shape, not a flat one.
 """
 
 import json
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -16,7 +22,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 MODEL_DIR = PROJECT_ROOT / "models"
 
-MODEL_NAMES = ["LSTM", "Transformer/baseline"]
+# None means "every model discovered under models/" (see discover_model_names).
+MODEL_NAMES = None
 
 OUTPUT_DIR = MODEL_DIR / "comparison"
 
@@ -99,6 +106,8 @@ def load_row(model_name):
     with open(experiment_dir / "metrics.json") as f:
         metrics = json.load(f)
 
+    improved_model = metrics.get("improved_model", {})
+
     epochs_trained = None
 
     history_file = experiment_dir / "training_history.csv"
@@ -109,14 +118,17 @@ def load_row(model_name):
     return {
         "model": model_name,
         "experiment": experiment_dir.name,
-        "loss": metrics.get("loss"),
-        "mae": metrics.get("mae"),
-        "rmse": metrics.get("rmse"),
+        "mae": improved_model.get("overall_mae"),
+        "rmse": improved_model.get("overall_rmse"),
+        "mae_by_hour": improved_model.get("mae_by_hour"),
         "epochs_trained": epochs_trained
     }
 
 
 def compare(model_names=MODEL_NAMES, name=None):
+    if model_names is None:
+        model_names = discover_model_names()
+
     rows = [
         row
         for row in (load_row(model_name) for model_name in model_names)
@@ -129,7 +141,11 @@ def compare(model_names=MODEL_NAMES, name=None):
             "Train the LSTM and Transformer models first."
         )
 
-    comparison_df = pd.DataFrame(rows)
+    mae_by_hour_by_model = {
+        row["model"]: row["mae_by_hour"] for row in rows if row["mae_by_hour"]
+    }
+    table_columns = ["model", "experiment", "mae", "rmse", "epochs_trained"]
+    comparison_df = pd.DataFrame(rows, columns=table_columns)
 
     comparison_name = name or "_vs_".join(_slugify(m) for m in model_names)
     comparison_dir = OUTPUT_DIR / comparison_name
@@ -173,6 +189,29 @@ def compare(model_names=MODEL_NAMES, name=None):
 
         print(f"Saved chart to: {chart_file}")
 
+    if mae_by_hour_by_model:
+        fig, ax = plt.subplots(figsize=(8, 5))
+
+        for model_name, mae_by_hour in mae_by_hour_by_model.items():
+            hours = np.arange(1, len(mae_by_hour) + 1)
+            ax.plot(hours, mae_by_hour, marker="o", markersize=3, label=model_name)
+
+        ax.set_xlabel("Forecast horizon (hours)")
+        ax.set_ylabel("MAE (°C)")
+        ax.set_title("MAE by Forecast Horizon")
+        ax.legend()
+        ax.grid(True)
+
+        fig.tight_layout()
+
+        overlay_file = comparison_dir / "mae_by_horizon_overlay.png"
+
+        fig.savefig(overlay_file, dpi=300, bbox_inches="tight")
+
+        plt.close(fig)
+
+        print(f"Saved MAE-by-horizon overlay to: {overlay_file}")
+
     return comparison_df
 
 
@@ -184,4 +223,4 @@ def compare_all():
 
 
 if __name__ == "__main__":
-    compare()
+    compare_all()

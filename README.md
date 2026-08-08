@@ -1,246 +1,177 @@
-# Temperature_Prediction_DeepLearning
-This project investigates the use of deep learning techniques for weather forecasting by comparing two sequential learning architectures: Long Short-Term Memory (LSTM) networks and Transformer-based models.
+# Temperature Prediction Deep Learning
 
-Model 1: Long Short-Term Memory (LSTM) 
+This project compares two deep learning architectures for multi-horizon temperature
+forecasting: an **LSTM** and a **Transformer encoder**, both built with
+TensorFlow/Keras. Given the previous 72 hours of hourly weather observations across
+16 U.S. cities, each model forecasts the next 24 hours of temperature.
 
-The first model will utilize PyTorch’s LSTM implementation to learn temporal dependencies within historical weather observations. 
+Both tracks are trained and evaluated on the exact same data splits and windowing, and
+scored with the same evaluation code, so their metrics are directly comparable. The
+windowing itself is duplicated rather than shared: the LSTM builds its windows through
+its own implementation in `src/models/lstm/train.py`, while everything else (the
+Transformer experiments, the LSTM evaluation script, and `run_all_experiments.py`) uses
+`src/models/common/data.py`. `tests/test_data.py` verifies by direct comparison that
+the two implementations produce byte-identical windows from the same input, which is
+the basis for treating the two tracks as comparable at all.
 
-Input Sequence à Normalization à LSTM Layer à Dropout à Dense Layer (ReLU) à Output Layer (Linear) à Temperature Prediction 
+## Installation
 
-The LSTM model serves as a strong baseline for sequential forecasting tasks and has been extensively used in weather prediction research. 
-
-
-Model 2: Transformer 
-
-The second model will utilize a Transformer Encoder architecture implemented using PyTorch. 
-
-Input Sequence à Positional Encoding à Transformer Encoder à Feed Forward Network à Output Layer (Linear) à Temperature Prediction 
-
-Unlike LSTM networks, Transformers use self-attention mechanisms that allow the model to consider all previous observations simultaneously when generating predictions. This may enable the model to capture long-range temporal dependencies more effectively. Also, this presents a comparative analysis over the duration of our project between the two models. 
-
-The proposed architectures represent the initial experimental design. During implementation, adjustments to the models and preprocessing pipeline may be introduced based on experimental results and computational considerations. Any such changes will be documented and justified in the final report. 
-
-**Installation**
-
-Clone the repository:
-
-git clone https://github.com/<username>/WeatherAI.git
-
-Create a virtual environment:
-
+```
+git clone <repo-url>
+cd Temperature_Prediction_DeepLearning
 python -m venv venv
-
-Activate it.
-
-Windows
-
-venv\Scripts\activate
-
-Linux / macOS
-
-source venv/bin/activate
-
-Install dependencies:
-
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-**Features**
-- Historical weather data collection
-- Automated preprocessing pipeline
-- Train / Validation / Test dataset generation
-- LSTM forecasting model
-- Transformer forecasting model
-- Model checkpointing
-- Prediction generation
-- Training history logging
-- Evaluation metrics
-- Automatic graph generation
-- Modular project architecture
-
-**Structure**
-'''
-```text
-WeatherAI/
-│
-├── .env
-├── .gitignore
-├── README.md
-├── weather_main.py
-│
-├── data/
-│   ├── processed/
-│   │   └── features.csv
-│   │
-│   ├── raw/
-│   │   ├── atlanta_2024.csv
-│   │   ├── austin.csv
-│   │   ├── boston.csv
-│   │   ├── dallas.csv
-│   │   ├── los_angeles.csv
-│   │   ├── random.csv
-│   │   ├── san_antonio.csv
-│   │   ├── seattle.csv
-│   │   └── seattle_2024.csv
-│   │
-│   └── splits/
-│       ├── train.csv
-│       ├── dev.csv
-│       └── test.csv
-│
-├── models/
-│   ├── weather_lstm.keras
-│   │
-│   ├── history/
-│   │   ├── metrics.json
-│   │   ├── predictions.csv
-│   │   └── LSTM/
-│   │       └── training_history.csv
-│   │
-│   ├── LSTM/
-│   │   ├── checkpoints/
-│   │   │   └── best.keras
-│   │   │
-│   │   └── experiments/
-│   │       ├── 2026-06-30_17-20-16/
-│   │       │   ├── model_summary.txt
-│   │       │   ├── training_history.csv
-│   │       │   ├── weather_transformer.keras
-│   │       │   └── figures/
-│   │       │       ├── loss_curve.png
-│   │       │       ├── mae_curve.png
-│   │       │       └── prediction_curve.png
-│   │       │
-│   │       ├── 2026-06-30_18-37-23/
-│   │       │   ├── model_summary.txt
-│   │       │   ├── training_history.csv
-│   │       │   ├── weather_lstm.keras
-│   │       │   └── figures/
-│   │       │       ├── loss_curve.png
-│   │       │       ├── mae_curve.png
-│   │       │       └── prediction_curve.png
-│   │       │
-│   │       └── 2026-07-01_17-14-36/
-│   │           ├── metrics.json
-│   │           ├── model_summary.txt
-│   │           ├── predictions.csv
-│   │           ├── training_history.csv
-│   │           ├── weather_lstm.keras
-│   │           └── figures/
-│   │               ├── loss_curve.png
-│   │               ├── mae_curve.png
-│   │               └── prediction_curve.png
-│   │
-│   └── predictions/
-│       └── predictions.csv
-│
-├── src/
-│   ├── api/
-│   │   └── openmeteo_client.py
-│   │
-│   ├── data/
-│   │   ├── collect_historical.py
-│   │   ├── preprocess.py
-│   │   └── split_dataset.py
-│   │
-│   ├── models/
-│   │   ├── checkpoints/
-│   │   │   └── Transformer/
-│   │   │
-│   │   ├── common/
-│   │   │   ├── callbacks.py
-│   │   │   ├── evaluation.py
-│   │   │   └── plotting.py
-│   │   │
-│   │   ├── lstm/
-│   │   │   ├── model.py
-│   │   │   ├── train.py
-│   │   │   └── predict.py
-│   │   │
-│   │   └── transformer/
-│   │       ├── model.py
-│   │       ├── train.py
-│   │       └── predict.py
-│   │
-│   └── utils/
-│       ├── city_coordinates.py
-│       └── config.py
-│
-└── tests/
 ```
 
-'''
+## Structure
 
-**Machine Learning Pipeline**
-Historical Weather Data
-            │
-            ▼
-     Data Collection
-            │
-            ▼
-      Preprocessing
-            │
-            ▼
-    Feature Engineering
-            │
-            ▼
-Train / Validation / Test Split
-            │
-            ▼
-      Model Training
-            │
-            ▼
-        Evaluation
-            │
-            ▼
-        Prediction
+```
+Temperature_Prediction_DeepLearning/
+├── data/
+│   ├── raw/                    # Per-city hourly weather history CSVs
+│   └── splits/                 # train.csv / dev.csv / test.csv (generated, git-ignored)
+│
+├── models/
+│   ├── LSTM/
+│   │   ├── latest/              # weather_lstm.keras + model_config.json for inference
+│   │   └── experiments/<timestamp>/
+│   ├── Transformer/
+│   │   ├── exp00_baseline/      # weather covariates only
+│   │   ├── exp01_temperature/   # + the target's own recent history
+│   │   ├── exp02_city/          # + a learned city-identity embedding
+│   │   ├── exp03_temperature_city/  # both of the above together
+│   │   └── exp04_baseline_blend/    # exp03's inputs + a persistence-residual head
+│   │       └── */experiments/<timestamp>/
+│   │           ├── weather_transformer.keras
+│   │           ├── config.json, metrics.json, model_summary.txt
+│   │           ├── training_history.csv
+│   │           └── figures/
+│   └── comparison/
+│       ├── lstm_on_shared_test_split/   # LSTM evaluated on the shared 16-city test split
+│       └── h3_phase_results.json        # preserved numbers from the project's earlier
+│                                         # single-value, 3-hour-ahead framing (not
+│                                         # comparable to the current 72h->24h results)
+│
+├── notebooks/
+│   └── results.ipynb            # loads every experiment's metrics.json and narrates
+│                                 # the five hypotheses exp00-exp04 are testing
+│
+├── src/
+│   ├── api/openmeteo_client.py           # Open-Meteo historical weather API client
+│   ├── data/
+│   │   ├── collect_historical.py         # downloads per-city raw CSVs
+│   │   ├── preprocess.py                 # feature engineering -> data/processed/
+│   │   └── split_dataset.py              # chronological train/dev/test split
+│   │
+│   ├── models/
+│   │   ├── common/
+│   │   │   ├── data.py                   # canonical windowing, shared by everything
+│   │   │   │                             # except lstm/train.py's own implementation
+│   │   │   ├── evaluation.py             # metrics + persistence/previous-day baselines
+│   │   │   ├── plotting.py               # loss/MAE curves, forecast examples
+│   │   │   ├── evaluate_saved_lstm.py    # scores the saved LSTM on the shared test split
+│   │   │   └── compare.py                # cross-model MAE/RMSE table + MAE-by-horizon overlay
+│   │   │
+│   │   ├── lstm/
+│   │   │   ├── model.py, train.py, predict.py
+│   │   │
+│   │   └── transformer/
+│   │       ├── architecture.py           # build_model(): encoder blocks, city embedding,
+│   │       │                             # optional baseline-blend residual head
+│   │       ├── training.py               # run_training()/load_cached_results()
+│   │       ├── predict.py                # forecast from one experiment's latest model
+│   │       └── experiments/
+│   │           └── exp*/config.py, train.py, README.md
+│   │
+│   └── utils/
+│       └── city_coordinates.py
+│
+├── tests/
+│   └── test_data.py             # windowing shape/alignment/segmentation tests, plus
+│                                 # the byte-identical-to-lstm/train.py cross-check
+│
+└── run_all_experiments.py       # trains all five Transformer experiments in sequence
+```
 
-**Data Preparation**
+## Data preparation
 
-Collect historical weather data:
-
+```
 python -m src.data.collect_historical
-
-Preprocess:
-
 python -m src.data.preprocess
-
-Create dataset splits:
-
 python -m src.data.split_dataset
+```
 
-**Training**
+## Training
 
-Train the LSTM model:
-
-python -m src.models.lstm.train
-
-Train the Transformer model:
-
-python -m src.models.transformer.train
-
-**Making Predictions**
+Both tracks train locally on CPU; there is no GPU/Colab dependency.
 
 LSTM:
 
-python -m src.models.lstm.predict
+```
+python -m src.models.lstm.train
+```
 
-Transformer:
+All five Transformer experiments, in degrade-gracefully order (already-completed
+experiments are skipped automatically; pass `--force` to retrain everything):
 
-python -m src.models.transformer.predict
+```
+python run_all_experiments.py
+python run_all_experiments.py exp00_baseline exp01_temperature   # a subset
+```
 
-Predictions are saved to
+Each Transformer experiment lives in its own folder under
+`src/models/transformer/experiments/` with a `config.py` (feature set,
+`TransformerConfig` hyperparameters) and a `train.py` entry point, and can also be run
+directly:
 
-models/predictions/
+```
+python -m src.models.transformer.experiments.exp03_temperature_city.train
+```
 
-**Generated Outputs**
+## Evaluation and comparison
 
-Each experiment automatically saves:
+Score the saved LSTM on the shared 16-city test split:
 
-Trained model
-Model summary
-Training history
-Prediction CSV
-Evaluation metrics
-Loss curve
-MAE curve
-Prediction curve
+```
+python -m src.models.common.evaluate_saved_lstm
+```
+
+Every experiment (both tracks) writes a `metrics.json` nested as
+`improved_model` / `persistence_baseline` / `previous_day_baseline`, each holding
+`overall_mae`, `overall_rmse`, per-horizon `mae_by_hour`, and a per-city
+`test_metrics_by_group` breakdown. Build a side-by-side comparison table plus an
+MAE-by-horizon overlay chart across every trained model:
+
+```
+python -m src.models.common.compare
+```
+
+`notebooks/results.ipynb` walks through the five Transformer experiments' results in
+more detail, alongside the LSTM comparison.
+
+## Making predictions
+
+LSTM (downloads recent observations for a city and forecasts up to 24 hours ahead):
+
+```
+python -m src.models.lstm.predict --city seattle
+```
+
+Transformer (forecasts from one experiment's latest saved model):
+
+```
+python -m src.models.transformer.predict --experiment exp03_temperature_city --city seattle
+```
+
+## Tests
+
+```
+python -m unittest discover -s tests -t .
+```
+
+This should report 7 tests, OK. Among other things, it verifies that
+`src/models/common/data.py`'s vectorized windowing produces byte-identical output to a
+reimplementation of the LSTM track's own windowing loop
+(`src/models/lstm/train.py:344-349`) — the basis for treating the two tracks'
+metrics as comparable at all.
