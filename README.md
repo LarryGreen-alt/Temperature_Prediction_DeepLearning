@@ -147,6 +147,37 @@ MAE-by-horizon overlay chart across every trained model:
 python -m src.models.common.compare
 ```
 
+For a specific subset of runs, call `compare()` directly with a list of entries.
+Each entry is either `"Model/name"` (latest run, labelled with the model name),
+`"Model/name@<experiment-timestamp>"` (that specific run), or a
+`(entry, "custom label")` tuple -- which is how to chart several runs of the same
+model side by side, since each needs its own label:
+
+```python
+from src.models.common.compare import compare
+
+compare(
+    ["Transformer/exp00_baseline", "Transformer/exp01_temperature",
+     "Transformer/exp02_city", "Transformer/exp03_temperature_city",
+     "Transformer/exp04_baseline_blend"],
+    name="transformer_ablation",
+)
+
+# Two of Larry's own LSTM runs, explicitly labelled:
+compare(
+    [("LSTM@2026-08-02_07-36-51", "LSTM (multi-horizon)"),
+     ("LSTM@2026-07-18_14-32-02", "LSTM (h=3 era)")],
+    name="lstm_runs",
+    reference_metrics="models/comparison/lstm_on_shared_test_split/metrics.json",
+)
+```
+
+`reference_metrics` overlays one more run (a path, or a `(path, label)` tuple)
+without it counting as one of the compared entries -- e.g. a cross-track model
+evaluated on the same test windows. `compare_all()` (the `python -m
+src.models.common.compare` default) never adds a reference automatically; pass
+one explicitly when cross-track material belongs in the chart.
+
 `notebooks/results.ipynb` walks through the five Transformer experiments' results in
 more detail, alongside the LSTM comparison.
 
