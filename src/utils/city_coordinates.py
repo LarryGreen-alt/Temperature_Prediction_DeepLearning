@@ -22,7 +22,7 @@ CITY_COORDINATES = {
     "atlanta": (33.7490, -84.3880),
     "boston": (42.3601, -71.0589),
 
-    #North Korea -lol
+    # Out-of-distribution probe: 40.563 N, 126.853 E
     "random": (40.563017, 126.852766)
 }
 

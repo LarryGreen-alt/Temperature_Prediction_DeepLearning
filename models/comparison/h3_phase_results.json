@@ -1,0 +1,19 @@
+{
+    "description": "Results from the project's original h=3 phase (24-hour input, single-value prediction 3 hours ahead), preserved for the record before the h=3 artifacts were deleted. This is the only comparison where both architectures were trained under matched conditions on that framing -- the current multi-horizon (72h input, 24h output) results in models/comparison/lstm_on_shared_test_split/ and each models/Transformer/exp*/ directory are not comparable to these numbers.",
+    "input_hours": 24,
+    "forecast_horizon_hours": 3,
+    "num_cities": 16,
+    "models": {
+        "Transformer": {
+            "experiment": "baseline",
+            "experiment_dir": "2026-07-17_19-36-12",
+            "mae": 3.534,
+            "rmse": 4.347
+        },
+        "LSTM": {
+            "experiment_dir": "2026-07-18_14-32-02",
+            "mae": 2.372,
+            "rmse": 3.140
+        }
+    }
+}

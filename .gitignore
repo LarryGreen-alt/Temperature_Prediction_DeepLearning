@@ -90,6 +90,9 @@ data/splits/
 # Optional
 *.csv
 
+# ...except tracked experiment outputs (training_history.csv, predictions_sample.csv)
+!models/Transformer/**/experiments/**/*.csv
+
 # IPython
 profile_default/
 ipython_config.py
