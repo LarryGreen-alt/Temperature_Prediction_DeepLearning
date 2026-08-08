@@ -195,6 +195,21 @@ Transformer (forecasts from one experiment's latest saved model):
 python -m src.models.transformer.predict --experiment exp03_temperature_city --city seattle
 ```
 
+## Live demo
+
+A small FastAPI + vanilla-JS app under `demo/` lets you pick a city and a model
+(LSTM or Transformer) from a dropdown and see a 24-hour forecast built from live
+Open-Meteo data, plotted alongside the 72 hours the model saw as input:
+
+```
+pip install -r requirements.txt -r demo/requirements.txt
+uvicorn demo.main:app --reload
+```
+
+Then open http://localhost:8000. Model loading happens once at startup and takes a
+few seconds; the page is ready once the terminal prints "Both models loaded." See
+`demo/README.md` for details.
+
 ## Tests
 
 ```
