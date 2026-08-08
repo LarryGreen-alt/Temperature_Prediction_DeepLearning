@@ -126,6 +126,8 @@
               data: observedSeries,
               borderColor: "#5f6368",
               pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHitRadius: 8,
               tension: 0.1,
             },
             {
@@ -133,6 +135,8 @@
               data: forecastSeries,
               borderColor: "#1a73e8",
               pointRadius: 0,
+              pointHoverRadius: 4,
+              pointHitRadius: 8,
               borderDash: [6, 4],
               tension: 0.1,
             },
@@ -142,12 +146,21 @@
           responsive: true,
           maintainAspectRatio: false,
           animation: false,
+          interaction: { mode: "index", intersect: false },
           scales: {
             x: {
               ticks: { maxTicksLimit: 12, autoSkip: true },
             },
             y: {
               title: { display: true, text: "Temperature (C)" },
+            },
+          },
+          plugins: {
+            tooltip: {
+              filter: (item) => item.parsed.y !== null,
+              callbacks: {
+                label: (item) => `${item.dataset.label}: ${item.parsed.y.toFixed(1)} C`,
+              },
             },
           },
         },
