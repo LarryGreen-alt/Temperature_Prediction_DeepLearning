@@ -30,7 +30,14 @@ pip install -r requirements.txt
 Temperature_Prediction_DeepLearning/
 ├── data/
 │   ├── raw/                    # Per-city hourly weather history CSVs
+│   ├── processed/               # preprocess() output (generated, git-ignored)
 │   └── splits/                 # train.csv / dev.csv / test.csv (generated, git-ignored)
+│
+├── demo/
+│   ├── main.py                     # FastAPI app: /api/cities, /api/predict, static hosting
+│   ├── inference.py                # loads both saved models once at startup
+│   ├── live_weather.py             # live Open-Meteo fetch + feature engineering
+│   └── static/index.html           # vanilla-JS UI with a Chart.js forecast chart
 │
 ├── models/
 │   ├── LSTM/
@@ -49,6 +56,7 @@ Temperature_Prediction_DeepLearning/
 │   │           └── figures/
 │   └── comparison/
 │       ├── lstm_on_shared_test_split/   # LSTM evaluated on the shared 16-city test split
+│       ├── transformer_ablation/        # output of the compare() example below
 │       └── h3_phase_results.json        # preserved numbers from the project's earlier
 │                                         # single-value, 3-hour-ahead framing (not
 │                                         # comparable to the current 72h->24h results)
@@ -91,7 +99,9 @@ Temperature_Prediction_DeepLearning/
 │   └── test_data.py             # windowing shape/alignment/segmentation tests, plus
 │                                 # the byte-identical-to-lstm/train.py cross-check
 │
-└── run_all_experiments.py       # trains all five Transformer experiments in sequence
+├── run_all_experiments.py       # trains all five Transformer experiments in sequence
+└── update_all_city_datasets.py  # full refresh: re-downloads every city's raw history,
+                                  # re-preprocesses, and rebuilds train/dev/test
 ```
 
 ## Data preparation
@@ -100,6 +110,14 @@ Temperature_Prediction_DeepLearning/
 python -m src.data.collect_historical
 python -m src.data.preprocess
 python -m src.data.split_dataset
+```
+
+To refresh every city at once instead (re-downloads all 16 cities' raw history,
+re-preprocesses, and rebuilds the splits, aborting before publishing a mixed date
+range if any single city's download fails):
+
+```
+python update_all_city_datasets.py
 ```
 
 ## Training
@@ -194,6 +212,21 @@ Transformer (forecasts from one experiment's latest saved model):
 ```
 python -m src.models.transformer.predict --experiment exp03_temperature_city --city seattle
 ```
+
+## Live demo
+
+A small FastAPI + vanilla-JS app under `demo/` lets you pick a city and a model
+(LSTM or Transformer) from a dropdown and see a 24-hour forecast built from live
+Open-Meteo data, plotted alongside the 72 hours the model saw as input:
+
+```
+pip install -r requirements.txt -r demo/requirements.txt
+uvicorn demo.main:app --reload
+```
+
+Then open http://localhost:8000. Model loading happens once at startup and takes a
+few seconds; the page is ready once the terminal prints "Both models loaded." See
+`demo/README.md` for details.
 
 ## Tests
 
