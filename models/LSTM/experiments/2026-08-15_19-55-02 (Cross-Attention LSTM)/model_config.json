@@ -1,0 +1,35 @@
+{
+    "model_name": "weather_lstm_cross_attention_24h",
+    "architecture": "cross_attention",
+    "input_hours": 72,
+    "output_hours": 24,
+    "feature_columns": [
+        "temperature_2m",
+        "relative_humidity_2m",
+        "surface_pressure",
+        "wind_speed_10m",
+        "cloud_cover",
+        "precipitation",
+        "is_day",
+        "hour_sin",
+        "hour_cos",
+        "day_sin",
+        "day_cos"
+    ],
+    "target_column": "temperature_2m",
+    "temperature_feature_index": 0,
+    "created_at": "2026-08-15_19-55-02",
+    "best_epoch": 49,
+    "training_stride": 3,
+    "batch_size": 64,
+    "learning_rate": 0.0002,
+    "weight_decay": 0.0001,
+    "event_weighting": false,
+    "selection_metric": "val_mae",
+    "random_seed": 21,
+    "training_files": {
+        "train": "C:\\Users\\lj200\\weatherAI\\Temperature_Prediction_DeepLearning\\data\\splits\\train.csv",
+        "dev": "C:\\Users\\lj200\\weatherAI\\Temperature_Prediction_DeepLearning\\data\\splits\\dev.csv",
+        "test": "C:\\Users\\lj200\\weatherAI\\Temperature_Prediction_DeepLearning\\data\\splits\\test.csv"
+    }
+}

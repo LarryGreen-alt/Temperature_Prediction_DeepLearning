@@ -1,0 +1,369 @@
+{
+  "model_key": "standard_stacked",
+  "model_name": "functional",
+  "architecture": "Standard Stacked LSTM regression model",
+  "created_at": "2026-08-16_08-14-02",
+  "parameter_count": 33238,
+  "best_epoch": 97,
+  "test_mse": 33.71231582990051,
+  "test_mae_c": 4.639357940935335,
+  "test_rmse_c": 5.806230776493517,
+  "test_bias_c": -2.7754349831768588,
+  "keras_test_evaluation": {
+    "loss": 33.712345123291016,
+    "mae": 4.639357566833496,
+    "mse": 33.712345123291016,
+    "rmse": 5.8062334060668945
+  },
+  "improved_model": {
+    "overall_mse": 33.71231582990051,
+    "overall_mae": 4.639357940935335,
+    "overall_rmse": 5.806230776493517,
+    "overall_bias": -2.7754349831768588,
+    "max_absolute_error": 29.897936820983887,
+    "mae_by_forecast_hour": [
+      4.639357940935335
+    ],
+    "rmse_by_forecast_hour": [
+      5.806230776493517
+    ],
+    "bias_by_forecast_hour": [
+      -2.7754349831768588
+    ]
+  },
+  "test_metrics_by_city": {
+    "atlanta": {
+      "overall_mse": 16.178458744878334,
+      "overall_mae": 3.178185905486831,
+      "overall_rmse": 4.022245485407167,
+      "overall_bias": -0.3336950934703783,
+      "max_absolute_error": 17.07225799560547,
+      "mae_by_forecast_hour": [
+        3.178185905486831
+      ],
+      "rmse_by_forecast_hour": [
+        4.022245485407167
+      ],
+      "bias_by_forecast_hour": [
+        -0.3336950934703783
+      ],
+      "samples": 5032
+    },
+    "austin": {
+      "overall_mse": 31.568542596517254,
+      "overall_mae": 4.951140807258981,
+      "overall_rmse": 5.618589021855688,
+      "overall_bias": -4.399948110772868,
+      "max_absolute_error": 17.071885108947754,
+      "mae_by_forecast_hour": [
+        4.951140807258981
+      ],
+      "rmse_by_forecast_hour": [
+        5.618589021855688
+      ],
+      "bias_by_forecast_hour": [
+        -4.399948110772868
+      ],
+      "samples": 5032
+    },
+    "boston": {
+      "overall_mse": 13.166692751874068,
+      "overall_mae": 2.8432392220876057,
+      "overall_rmse": 3.6285937705775315,
+      "overall_bias": 0.37773988564574235,
+      "max_absolute_error": 14.665994644165039,
+      "mae_by_forecast_hour": [
+        2.8432392220876057
+      ],
+      "rmse_by_forecast_hour": [
+        3.6285937705775315
+      ],
+      "bias_by_forecast_hour": [
+        0.37773988564574235
+      ],
+      "samples": 5032
+    },
+    "chicago": {
+      "overall_mse": 50.0016459996198,
+      "overall_mae": 5.690930372098126,
+      "overall_rmse": 7.071184200656902,
+      "overall_bias": 4.99850695260722,
+      "max_absolute_error": 28.21020793914795,
+      "mae_by_forecast_hour": [
+        5.690930372098126
+      ],
+      "rmse_by_forecast_hour": [
+        7.071184200656902
+      ],
+      "bias_by_forecast_hour": [
+        4.99850695260722
+      ],
+      "samples": 5032
+    },
+    "dallas": {
+      "overall_mse": 33.377594692950396,
+      "overall_mae": 4.903940461152522,
+      "overall_rmse": 5.7773345664718425,
+      "overall_bias": -3.9074963022479476,
+      "max_absolute_error": 18.885199546813965,
+      "mae_by_forecast_hour": [
+        4.903940461152522
+      ],
+      "rmse_by_forecast_hour": [
+        5.7773345664718425
+      ],
+      "bias_by_forecast_hour": [
+        -3.9074963022479476
+      ],
+      "samples": 5032
+    },
+    "denver": {
+      "overall_mse": 24.005618639098383,
+      "overall_mae": 3.8805023044472136,
+      "overall_rmse": 4.8995529019593596,
+      "overall_bias": -2.5016678583398106,
+      "max_absolute_error": 22.256399154663086,
+      "mae_by_forecast_hour": [
+        3.8805023044472136
+      ],
+      "rmse_by_forecast_hour": [
+        4.8995529019593596
+      ],
+      "bias_by_forecast_hour": [
+        -2.5016678583398106
+      ],
+      "samples": 5032
+    },
+    "fort worth": {
+      "overall_mse": 26.555198652881785,
+      "overall_mae": 4.341034596822919,
+      "overall_rmse": 5.153173648624873,
+      "overall_bias": -3.0571775617054255,
+      "max_absolute_error": 18.465120315551758,
+      "mae_by_forecast_hour": [
+        4.341034596822919
+      ],
+      "rmse_by_forecast_hour": [
+        5.153173648624873
+      ],
+      "bias_by_forecast_hour": [
+        -3.0571775617054255
+      ],
+      "samples": 5032
+    },
+    "houston": {
+      "overall_mse": 53.983402612844344,
+      "overall_mae": 6.701951779986307,
+      "overall_rmse": 7.347339832404947,
+      "overall_bias": -6.455466287685869,
+      "max_absolute_error": 17.61472797393799,
+      "mae_by_forecast_hour": [
+        6.701951779986307
+      ],
+      "rmse_by_forecast_hour": [
+        7.347339832404947
+      ],
+      "bias_by_forecast_hour": [
+        -6.455466287685869
+      ],
+      "samples": 5032
+    },
+    "las vegas": {
+      "overall_mse": 23.68077812268268,
+      "overall_mae": 4.015645345289479,
+      "overall_rmse": 4.86628997519493,
+      "overall_bias": -3.3800132680515533,
+      "max_absolute_error": 13.655843734741211,
+      "mae_by_forecast_hour": [
+        4.015645345289479
+      ],
+      "rmse_by_forecast_hour": [
+        4.86628997519493
+      ],
+      "bias_by_forecast_hour": [
+        -3.3800132680515533
+      ],
+      "samples": 5032
+    },
+    "los angeles": {
+      "overall_mse": 31.419785235059432,
+      "overall_mae": 4.850206001337458,
+      "overall_rmse": 5.605335425740321,
+      "overall_bias": -4.813099044352912,
+      "max_absolute_error": 20.60063648223877,
+      "mae_by_forecast_hour": [
+        4.850206001337458
+      ],
+      "rmse_by_forecast_hour": [
+        5.605335425740321
+      ],
+      "bias_by_forecast_hour": [
+        -4.813099044352912
+      ],
+      "samples": 5032
+    },
+    "miami": {
+      "overall_mse": 125.40659334509644,
+      "overall_mae": 10.263250602826783,
+      "overall_rmse": 11.198508532170543,
+      "overall_bias": -10.259112244001065,
+      "max_absolute_error": 29.897936820983887,
+      "mae_by_forecast_hour": [
+        10.263250602826783
+      ],
+      "rmse_by_forecast_hour": [
+        11.198508532170543
+      ],
+      "bias_by_forecast_hour": [
+        -10.259112244001065
+      ],
+      "samples": 5032
+    },
+    "new york": {
+      "overall_mse": 27.178906220947177,
+      "overall_mae": 4.011580243520142,
+      "overall_rmse": 5.213339258186367,
+      "overall_bias": -1.3159286563887316,
+      "max_absolute_error": 22.807971000671387,
+      "mae_by_forecast_hour": [
+        4.011580243520142
+      ],
+      "rmse_by_forecast_hour": [
+        5.213339258186367
+      ],
+      "bias_by_forecast_hour": [
+        -1.3159286563887316
+      ],
+      "samples": 5032
+    },
+    "phoenix": {
+      "overall_mse": 32.17965378767363,
+      "overall_mae": 4.864898792724162,
+      "overall_rmse": 5.672711325959892,
+      "overall_bias": -4.598298219860263,
+      "max_absolute_error": 15.876623153686523,
+      "mae_by_forecast_hour": [
+        4.864898792724162
+      ],
+      "rmse_by_forecast_hour": [
+        5.672711325959892
+      ],
+      "bias_by_forecast_hour": [
+        -4.598298219860263
+      ],
+      "samples": 5032
+    },
+    "random": {
+      "overall_mse": 16.389029312443725,
+      "overall_mae": 3.1809388106179517,
+      "overall_rmse": 4.0483366105653475,
+      "overall_bias": 0.09093511471042146,
+      "max_absolute_error": 18.102208852767944,
+      "mae_by_forecast_hour": [
+        3.1809388106179517
+      ],
+      "rmse_by_forecast_hour": [
+        4.0483366105653475
+      ],
+      "bias_by_forecast_hour": [
+        0.09093511471042146
+      ],
+      "samples": 5032
+    },
+    "san antonio": {
+      "overall_mse": 28.710488332451938,
+      "overall_mae": 4.712449554684135,
+      "overall_rmse": 5.358216898600871,
+      "overall_bias": -4.265245360032091,
+      "max_absolute_error": 18.41721820831299,
+      "mae_by_forecast_hour": [
+        4.712449554684135
+      ],
+      "rmse_by_forecast_hour": [
+        5.358216898600871
+      ],
+      "bias_by_forecast_hour": [
+        -4.265245360032091
+      ],
+      "samples": 5032
+    },
+    "seattle": {
+      "overall_mse": 5.594664231388747,
+      "overall_mae": 1.8398322546247552,
+      "overall_rmse": 2.365304257677804,
+      "overall_bias": -0.5869936768842094,
+      "max_absolute_error": 13.47956371307373,
+      "mae_by_forecast_hour": [
+        1.8398322546247552
+      ],
+      "rmse_by_forecast_hour": [
+        2.365304257677804
+      ],
+      "bias_by_forecast_hour": [
+        -0.5869936768842094
+      ],
+      "samples": 5032
+    }
+  },
+  "persistence_baseline": {
+    "overall_mse": 9.427894100495399,
+    "overall_mae": 2.3252347472241515,
+    "overall_rmse": 3.070487599795088,
+    "overall_bias": -0.001007303293492343,
+    "max_absolute_error": 17.500000953674316,
+    "mae_by_forecast_hour": [
+      2.3252347472241515
+    ],
+    "rmse_by_forecast_hour": [
+      3.070487599795088
+    ],
+    "bias_by_forecast_hour": [
+      -0.001007303293492343
+    ]
+  },
+  "previous_day_baseline": {
+    "overall_mse": 13.577888754722,
+    "overall_mae": 2.5699224969311447,
+    "overall_rmse": 3.6848186868178465,
+    "overall_bias": -0.010132650896575189,
+    "max_absolute_error": 26.499998092651367,
+    "mae_by_forecast_hour": [
+      2.5699224969311447
+    ],
+    "rmse_by_forecast_hour": [
+      3.6848186868178465
+    ],
+    "bias_by_forecast_hour": [
+      -0.010132650896575189
+    ]
+  },
+  "training": {
+    "epochs_requested": 100,
+    "epochs_completed": 100,
+    "batch_size": 64,
+    "stride": 3,
+    "random_seed": 21,
+    "selection_metric": "val_mae"
+  },
+  "data_contract": {
+    "input_hours": 24,
+    "output_hours": 1,
+    "forecast_horizon": 3,
+    "feature_columns": [
+      "relative_humidity_2m",
+      "surface_pressure",
+      "wind_speed_10m",
+      "cloud_cover",
+      "precipitation",
+      "is_day",
+      "hour_sin",
+      "hour_cos",
+      "day_sin",
+      "day_cos"
+    ],
+    "target_column": "temperature_2m",
+    "training_samples": 376192,
+    "development_samples": 80512,
+    "test_samples": 80512
+  }
+}

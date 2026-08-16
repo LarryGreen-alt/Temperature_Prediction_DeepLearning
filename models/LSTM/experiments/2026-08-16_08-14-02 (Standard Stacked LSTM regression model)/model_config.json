@@ -1,11 +1,10 @@
 {
-  "model_name": "weather_lstm_24h",
-  "architecture": "residual_baseline",
-  "input_hours": 72,
-  "output_hours": 24,
-  "forecast_horizon": 1,
+  "model_name": "functional",
+  "architecture": "standard_stacked",
+  "input_hours": 24,
+  "output_hours": 1,
+  "forecast_horizon": 3,
   "feature_columns": [
-    "temperature_2m",
     "relative_humidity_2m",
     "surface_pressure",
     "wind_speed_10m",
@@ -18,8 +17,8 @@
     "day_cos"
   ],
   "target_column": "temperature_2m",
-  "created_at": "2026-08-16_10-02-06",
-  "best_epoch": 96,
+  "created_at": "2026-08-16_08-14-02",
+  "best_epoch": 97,
   "training_stride": 3,
   "batch_size": 64,
   "selection_metric": "val_mae",
