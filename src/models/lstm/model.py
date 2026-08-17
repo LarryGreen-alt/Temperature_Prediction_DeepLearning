@@ -566,6 +566,7 @@ def build_weather_model(
             late_horizon_weight=0.30,
         ),
         metrics=[
+            tf.keras.metrics.MeanSquaredError(name="mse"),
             tf.keras.metrics.MeanAbsoluteError(name="mae"),
             tf.keras.metrics.RootMeanSquaredError(name="rmse"),
         ],
@@ -575,7 +576,7 @@ def build_weather_model(
 
 
 def get_custom_objects() -> dict[str, object]:
-    return {
+    custom_objects = {
         "TemperatureBaselines": TemperatureBaselines,
         "Weather>TemperatureBaselines": TemperatureBaselines,
         "FutureCalendarFeatures": FutureCalendarFeatures,
@@ -587,6 +588,26 @@ def get_custom_objects() -> dict[str, object]:
         "LevelChangeHuber": LevelChangeHuber,
         "Weather>LevelChangeHuber": LevelChangeHuber,
     }
+
+    # Models trained from models_notebook.ipynb use the CNN + LSTM +
+    # self-attention residual architecture and its WeatherNotebook layers.
+    # Import lazily to avoid adding a circular dependency during module load.
+    try:
+        from .attention_augmented_residual import (
+            get_custom_objects as get_attention_custom_objects,
+        )
+    except ImportError:
+        try:
+            from attention_augmented_residual import (
+                get_custom_objects as get_attention_custom_objects,
+            )
+        except ImportError:
+            get_attention_custom_objects = None
+
+    if get_attention_custom_objects is not None:
+        custom_objects.update(get_attention_custom_objects())
+
+    return custom_objects
 
 
 def load_weather_model(

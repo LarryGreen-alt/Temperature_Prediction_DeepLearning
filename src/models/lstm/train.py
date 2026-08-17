@@ -29,6 +29,9 @@ try:
         build_weather_model,
         load_weather_model,
     )
+    from .attention_augmented_residual import (
+        build_attention_augmented_residual_model,
+    )
 except ImportError:
     from model import (
         FEATURE_COLUMNS,
@@ -39,9 +42,16 @@ except ImportError:
         build_weather_model,
         load_weather_model,
     )
+    from attention_augmented_residual import (
+        build_attention_augmented_residual_model,
+    )
 
 
 RANDOM_SEED = 21
+ARCHITECTURE_LABELS = {
+    "cross_attention": "Cross-Attention LSTM",
+    "attention_augmented_residual": "Attention-Augmented Residual LSTM",
+}
 TIME_COLUMN_CANDIDATES = ["time", "datetime", "timestamp", "date"]
 GROUP_COLUMN_CANDIDATES = ["city", "location", "location_name"]
 
@@ -425,6 +435,7 @@ def calculate_metrics(
     per_sample_mae = np.mean(absolute_errors, axis=1)
 
     return {
+        "overall_mse": float(np.mean(np.square(errors))),
         "overall_mae": float(np.mean(absolute_errors)),
         "overall_rmse": float(np.sqrt(np.mean(np.square(errors)))),
         "overall_bias": float(np.mean(errors)),
@@ -513,16 +524,18 @@ def save_plots(
     best_epoch = int(np.argmin(val_mae))
 
     plt.figure(figsize=(10, 6))
-    plt.plot(history_dict["loss"], label="Training Loss")
-    plt.plot(history_dict["val_loss"], label="Validation Loss")
+    mse_key = "mse" if "mse" in history_dict else "loss"
+    val_mse_key = "val_mse" if "val_mse" in history_dict else "val_loss"
+    plt.plot(history_dict[mse_key], label="Training MSE")
+    plt.plot(history_dict[val_mse_key], label="Validation MSE")
     plt.axvline(
         best_epoch,
         linestyle="--",
         label=f"Best epoch: {best_epoch + 1}",
     )
-    plt.title("Training vs Validation Loss")
+    plt.title("Training vs Validation MSE")
     plt.xlabel("Epoch")
-    plt.ylabel("Composite Level + Change Loss")
+    plt.ylabel("MSE Loss")
     plt.legend()
     plt.grid(True)
     plt.savefig(
@@ -630,6 +643,15 @@ def parse_args() -> argparse.Namespace:
         description="Train the regularized 72-to-24-hour LSTM model."
     )
     parser.add_argument(
+        "--architecture",
+        choices=sorted(ARCHITECTURE_LABELS),
+        default="cross_attention",
+        help=(
+            "Architecture to train. Use attention_augmented_residual for "
+            "the CNN + LSTM + self-attention model from models_notebook.ipynb."
+        ),
+    )
+    parser.add_argument(
         "--train-csv",
         type=Path,
         default=split_dir / "train.csv",
@@ -666,7 +688,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--learning-rate",
         type=float,
-        default=2e-4,
+        default=None,
+        help=(
+            "Override the architecture default (5e-4 for attention-augmented "
+            "residual, 2e-4 for cross-attention)."
+        ),
     )
     parser.add_argument(
         "--weight-decay",
@@ -701,7 +727,10 @@ def main() -> None:
     project_root = discover_project_root()
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     model_root = project_root / "models" / "LSTM"
-    experiment_dir = model_root / "experiments" / timestamp
+    architecture_label = ARCHITECTURE_LABELS[args.architecture]
+    experiment_dir = (
+        model_root / "experiments" / f"{timestamp} ({architecture_label})"
+    )
     figure_dir = experiment_dir / "figures"
     latest_dir = model_root / "latest"
 
@@ -787,12 +816,26 @@ def main() -> None:
             f"max={dev_sample_weights.max():.3f}"
         )
 
-    print("\nBuilding cross-attentive multi-baseline LSTM...")
-    model = build_weather_model(
-        X_train,
-        learning_rate=args.learning_rate,
-        weight_decay=args.weight_decay,
-    )
+    learning_rate = args.learning_rate
+    if learning_rate is None:
+        learning_rate = (
+            5e-4
+            if args.architecture == "attention_augmented_residual"
+            else 2e-4
+        )
+
+    print(f"\nBuilding {architecture_label}...")
+    if args.architecture == "attention_augmented_residual":
+        model = build_attention_augmented_residual_model(
+            X_train,
+            learning_rate=learning_rate,
+        )
+    else:
+        model = build_weather_model(
+            X_train,
+            learning_rate=learning_rate,
+            weight_decay=args.weight_decay,
+        )
     model.summary()
 
     with summary_path.open("w", encoding="utf-8") as file:
@@ -959,7 +1002,12 @@ def main() -> None:
     ) + 1
 
     metrics = {
+        "architecture": architecture_label,
+        "model_key": args.architecture,
         "best_epoch": best_epoch,
+        "test_mse": forecast_metrics["overall_mse"],
+        "test_mae_c": forecast_metrics["overall_mae"],
+        "test_rmse_c": forecast_metrics["overall_rmse"],
         "unweighted_evaluation": {
             "train": {
                 key: float(value)
@@ -983,6 +1031,7 @@ def main() -> None:
         "improvement_vs_previous_day_mae_percent": improvement_percent,
         "representative_plot_sample": representative_index,
         "training": {
+            "architecture": args.architecture,
             "stride": args.stride,
             "epochs_requested": args.epochs,
             "epochs_completed": len(history.history["loss"]),
@@ -1002,6 +1051,7 @@ def main() -> None:
 
     config = {
         "model_name": best_model.name,
+        "architecture": args.architecture,
         "input_hours": INPUT_HOURS,
         "output_hours": OUTPUT_HOURS,
         "feature_columns": FEATURE_COLUMNS,
@@ -1011,7 +1061,7 @@ def main() -> None:
         "best_epoch": best_epoch,
         "training_stride": args.stride,
         "batch_size": args.batch_size,
-        "learning_rate": args.learning_rate,
+        "learning_rate": learning_rate,
         "weight_decay": args.weight_decay,
         "event_weighting": args.event_weighting,
         "selection_metric": "val_mae",
